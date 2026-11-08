@@ -35,11 +35,17 @@ ShiftHub/
     │   ├── schema.prisma   # Database schema
     │   └── migrations/     # SQL migration history
     ├── prisma.config.ts    # Prisma CLI configuration
+    ├── requests/           # REST Client examples (shifts.http)
     ├── src/
     │   ├── index.ts        # Server entry point
     │   ├── app.ts          # Express app and middleware
     │   ├── lib/prisma.ts   # Shared Prisma client
-    │   └── routes/         # Route handlers
+    │   ├── routes/         # URL + method -> validation -> controller
+    │   ├── controllers/    # HTTP in/out, status codes
+    │   ├── services/       # Business rules and database access
+    │   ├── schemas/        # Zod validation schemas
+    │   ├── middleware/     # validate, notFound, errorHandler
+    │   └── errors/         # AppError class
     └── .env.example
 ```
 
@@ -73,6 +79,7 @@ cp client/.env.example client/.env
 
 ```env
 PORT=3000
+NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=verify-full"
 ```
@@ -112,17 +119,95 @@ Open http://localhost:5173. The status box should show **API connected**.
 
 ## API
 
-| Method | Endpoint | Description |
+| Method | Endpoint | Description | Success |
+| --- | --- | --- | --- |
+| GET | `/api/health` | API and database status | 200 |
+| GET | `/api/shifts` | List shifts, ordered by start time | 200 |
+| GET | `/api/shifts/:id` | Get one shift | 200 |
+| POST | `/api/shifts` | Create a shift | 201 |
+| PUT | `/api/shifts/:id` | Update a shift (send only the fields to change) | 200 |
+| DELETE | `/api/shifts/:id` | Delete a shift | 204 |
+
+Ready-to-run examples for every endpoint, including failing cases, are in [`server/requests/shifts.http`](server/requests/shifts.http) (VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension).
+
+### Shifts
+
+**Shift fields**
+
+| Field | Type | Rules |
 | --- | --- | --- |
-| GET | `/api/health` | Returns API and database status |
+| `title` | string | Required on create, 1–100 characters |
+| `startTime` | ISO 8601 date-time with timezone | Required on create, e.g. `2026-12-01T08:00:00Z` |
+| `endTime` | ISO 8601 date-time with timezone | Required on create, after `startTime`, at most 16 hours later |
+| `position` | string \| null | Optional, max 50 characters, `null` clears it on update |
+| `notes` | string \| null | Optional, max 500 characters, `null` clears it on update |
+| `employeeId` | integer \| null | Optional, must be an existing user, `null` = unassigned |
+
+**Example: create a shift**
+
+```http
+POST /api/shifts
+Content-Type: application/json
+
+{
+  "title": "Morning shift",
+  "startTime": "2026-12-01T08:00:00Z",
+  "endTime": "2026-12-01T16:00:00Z",
+  "position": "Kitchen",
+  "employeeId": 1
+}
+```
+
+Responses include the assigned employee (`id`, `name`, `email` only):
 
 ```json
-{ "status": "ok", "app": "ShiftHub", "database": "connected" }
+{
+  "id": "3f1c2a9e-8b7d-4c6e-9a5b-1d2e3f4a5b6c",
+  "title": "Morning shift",
+  "startTime": "2026-12-01T08:00:00.000Z",
+  "endTime": "2026-12-01T16:00:00.000Z",
+  "position": "Kitchen",
+  "notes": null,
+  "employeeId": 1,
+  "createdAt": "2026-11-08T20:00:00.000Z",
+  "updatedAt": "2026-11-08T20:00:00.000Z",
+  "employee": { "id": 1, "name": "Alex", "email": "alex@example.com" }
+}
 ```
+
+**List filters** (all optional): `from`, `to` (dates; returns shifts that overlap this window, `from` must be before `to`) and `employeeId`.
+
+```
+GET /api/shifts?from=2026-12-01T00:00:00Z&to=2027-01-01T00:00:00Z&employeeId=1
+```
+
+**Business rules**
+
+- An employee can't have two overlapping shifts (`409 SHIFT_OVERLAP`). Back-to-back shifts are allowed, and unassigned shifts are never checked.
+- An update that sends only `startTime` or only `endTime` is checked against the stored value.
+- An update must contain at least one field.
+
+### Errors
+
+Every error has the same shape:
+
+```json
+{ "error": { "message": "Validation failed", "code": "VALIDATION_ERROR", "details": { "endTime": ["endTime must be after startTime"] } } }
+```
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Invalid body, params or query (`details` lists errors per field) |
+| 400 | `INVALID_REFERENCE` | `employeeId` doesn't match an existing user |
+| 404 | `SHIFT_NOT_FOUND` | No shift with this id |
+| 404 | `ROUTE_NOT_FOUND` | Unknown URL |
+| 409 | `SHIFT_OVERLAP` | Employee already has a shift during this time |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (no details in production) |
 
 ## Roadmap
 
-- [ ] Shifts CRUD (create, view, edit and delete shifts)
+- [x] Shifts CRUD API with validation and overlap checks
+- [ ] Shifts UI (create, view, edit and delete shifts in the frontend)
 - [ ] Authentication with JWT and role-based access (admin, manager, employee)
 - [ ] Calendar UI for weekly and monthly schedules
 - [ ] Real-time schedule updates

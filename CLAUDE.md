@@ -33,14 +33,25 @@ ShiftHub/
 │   └── .env.example
 └── server/
     ├── prisma/
-    │   ├── schema.prisma    # models (currently: User)
+    │   ├── schema.prisma    # models: User, Shift
     │   └── migrations/      # committed SQL migrations
     ├── prisma.config.ts     # Prisma CLI config (DB URL lives here, not in schema)
+    ├── requests/
+    │   └── shifts.http      # VS Code REST Client examples (happy path + failing cases)
     ├── src/
     │   ├── index.ts         # loads dotenv, starts server on PORT (default 3000)
-    │   ├── app.ts           # express app, CORS, mounts routers
+    │   ├── app.ts           # express app, CORS, mounts routers, then notFound + errorHandler LAST
     │   ├── lib/prisma.ts    # shared PrismaClient
-    │   ├── routes/          # one router file per resource
+    │   ├── routes/          # one router per resource: URL + method -> validate() -> controller
+    │   ├── controllers/     # <resource>.controller.ts: HTTP in/out and status codes only
+    │   ├── services/        # <resource>.service.ts: business rules + Prisma calls, no HTTP
+    │   ├── schemas/         # <resource>.schema.ts: Zod schemas + z.infer types
+    │   ├── middleware/
+    │   │   ├── validate.ts      # validate({ params, body, query }) with Zod, typed req
+    │   │   ├── notFound.ts      # unmatched routes -> AppError 404
+    │   │   └── errorHandler.ts  # turns every error into the error response format
+    │   ├── errors/
+    │   │   └── AppError.ts  # AppError(statusCode, message, code, details?)
     │   └── generated/       # Prisma client output (git-ignored, built by prisma generate)
     └── .env.example
 ```
@@ -72,7 +83,7 @@ After changing a feature, verify with `npm run build` (both apps) and `npm run l
 ## Deployment
 
 - **Vercel** (frontend): root directory `client`, Vite preset. Env: `VITE_API_URL` (the Render API URL, no trailing slash). `VITE_` variables are baked in at build time and are public, so changing one requires a redeploy and they must never hold secrets.
-- **Render** (API): root directory `server`, build command `npm install && npm run build:render`, start command `npm start`. Env: `DATABASE_URL`, `CLIENT_URL` (the Vercel URL, no trailing slash). Render sets `PORT` itself. Migrations run during the build because the free tier has no pre-deploy command.
+- **Render** (API): root directory `server`, build command `npm install --include=dev && npm run build:render`, start command `npm start`. Env: `DATABASE_URL`, `CLIENT_URL` (the Vercel URL, no trailing slash), `NODE_ENV=production`. Render sets `PORT` itself. `--include=dev` is required: with `NODE_ENV=production`, plain `npm install` skips devDependencies, and the build needs `prisma` and `typescript` from there. Build order: install → `prisma generate` → `tsc` → `prisma migrate deploy` (migrations last, so a failed build never touches the database). Migrations run during the build because the free tier has no pre-deploy command.
 - Live URLs: frontend https://shifthub-red.vercel.app, API https://shifthub-api-d1zy.onrender.com/api/health (free tier, cold start up to ~50 s).
 
 ## Environment variables
@@ -81,6 +92,7 @@ After changing a feature, verify with `npm run build` (both apps) and `npm run l
 | --- | --- | --- |
 | `VITE_API_URL` | client | Base URL of the API |
 | `PORT` | server | Port to listen on (default 3000) |
+| `NODE_ENV` | server | `production` hides error details/stack traces in 500 responses. Must be set on Render |
 | `CLIENT_URL` | server | Only origin allowed by CORS (default http://localhost:5173) |
 | `DATABASE_URL` | server | Neon PostgreSQL connection string (pooled) |
 | `DIRECT_URL` | server, optional | Direct Neon URL, used only by the Prisma CLI for migrations |
@@ -94,8 +106,31 @@ When adding a variable, also add it to the matching `.env.example` with a **plac
 - Routes live in `server/src/routes/`, one `Router` per resource, mounted under `/api/...` in `src/app.ts`.
 - Always import the shared client from `src/lib/prisma.ts`. Never create another `PrismaClient`.
 - Schema changes: edit `prisma/schema.prisma`, run `npm run db:migrate -- --name <description>`, and commit the new migration folder.
+- Server layers: **route → controller → service**. Business rules live only in services; controllers never call Prisma directly.
+- Validate every route with `validate()` and a Zod schema from `src/schemas/`. Read parsed values from `req.params` / `req.body` / `req.query` (validate replaces them; `req.query` is redefined because Express 5 makes it a getter).
+- Express 5 forwards errors from async handlers automatically: **no try/catch wrappers or express-async-handler**. Throw `AppError` for expected errors.
+- When returning a User with another model, use `select` with an allow-list of safe fields (`id`, `name`, `email`), never `include: { employee: true }`.
 - Client styling uses Tailwind utility classes only. No separate CSS files per component.
 - Client API calls go through `client/src/api.ts`.
+
+## Error response format
+
+Every API error uses this shape (built in `src/middleware/errorHandler.ts`):
+
+```json
+{ "error": { "message": "string", "code": "STRING_CODE", "details": "optional, any JSON" } }
+```
+
+| Source | Status | `code` | `details` |
+| --- | --- | --- | --- |
+| `ZodError` | 400 | `VALIDATION_ERROR` | field errors, e.g. `{ "endTime": ["..."] }`; object-level errors become `message` |
+| `AppError` | its `statusCode` | its `code` (e.g. `SHIFT_NOT_FOUND`, `SHIFT_OVERLAP`) | its `details`, if set |
+| Prisma `P2025` | 404 | `NOT_FOUND` | none |
+| Prisma `P2003` | 400 | `INVALID_REFERENCE` | none |
+| unknown route | 404 | `ROUTE_NOT_FOUND` | none |
+| anything else | 500 | `INTERNAL_ERROR` | message + stack only when `NODE_ENV` is not `production` |
+
+New expected errors: throw `new AppError(status, message, 'UPPER_SNAKE_CODE', details?)` from a service.
 
 ## Rules for working with me
 
