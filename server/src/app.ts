@@ -1,5 +1,7 @@
 import cors from 'cors'
 import express from 'express'
+import { errorHandler } from './middleware/errorHandler.js'
+import { notFound } from './middleware/notFound.js'
 import healthRouter from './routes/health.js'
 
 // Only this origin may call the API from a browser.
@@ -12,5 +14,10 @@ app.use(cors({ origin: CLIENT_URL }))
 app.use(express.json())
 
 app.use('/api/health', healthRouter)
+
+// These two must stay LAST: notFound catches unmatched routes,
+// errorHandler catches every error passed along from above.
+app.use(notFound)
+app.use(errorHandler)
 
 export default app
