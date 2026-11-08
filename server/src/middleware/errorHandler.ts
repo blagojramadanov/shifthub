@@ -21,11 +21,14 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
 
   // Invalid request data (from a Zod schema .parse()).
   if (err instanceof ZodError) {
+    // fieldErrors: problems with one field. formErrors: problems with the whole
+    // object (e.g. an empty update body), shown as the message.
+    const { formErrors, fieldErrors } = z.flattenError(err)
     const body: ErrorBody = {
       error: {
-        message: 'Validation failed',
+        message: formErrors.length > 0 ? formErrors.join('; ') : 'Validation failed',
         code: 'VALIDATION_ERROR',
-        details: z.flattenError(err).fieldErrors,
+        details: fieldErrors,
       },
     }
     res.status(400).json(body)
