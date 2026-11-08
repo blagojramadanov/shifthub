@@ -7,21 +7,25 @@ const MAX_SHIFT_MS = MAX_SHIFT_HOURS * 60 * 60 * 1000
 // "2026-11-08T09:00:00+01:00"), turned into a Date after validation.
 const isoDateTime = z.iso.datetime({ offset: true }).transform((value) => new Date(value))
 
-// Shared rules for start/end times. They only run when both times are present,
+// The time rules for a shift, as a plain function: returns an error message,
+// or null if the times are fine. Used by the schemas below AND by the shift
+// service (for updates that change only one of the two times).
+export function getShiftTimeError(startTime: Date, endTime: Date): string | null {
+  const duration = endTime.getTime() - startTime.getTime()
+  if (duration <= 0) return 'endTime must be after startTime'
+  if (duration > MAX_SHIFT_MS) return `A shift cannot be longer than ${MAX_SHIFT_HOURS} hours`
+  return null
+}
+
+// Zod wrapper around getShiftTimeError. It only runs when both times are present,
 // so the same function works for create (both required) and update (both optional).
 function checkShiftTimes(data: { startTime?: Date; endTime?: Date }, ctx: z.RefinementCtx) {
   const { startTime, endTime } = data
   if (!startTime || !endTime) return
 
-  const duration = endTime.getTime() - startTime.getTime()
-  if (duration <= 0) {
-    ctx.addIssue({ code: 'custom', message: 'endTime must be after startTime', path: ['endTime'] })
-  } else if (duration > MAX_SHIFT_MS) {
-    ctx.addIssue({
-      code: 'custom',
-      message: `A shift cannot be longer than ${MAX_SHIFT_HOURS} hours`,
-      path: ['endTime'],
-    })
+  const message = getShiftTimeError(startTime, endTime)
+  if (message) {
+    ctx.addIssue({ code: 'custom', message, path: ['endTime'] })
   }
 }
 

@@ -1,0 +1,152 @@
+# Shift API examples for the VS Code "REST Client" extension (humao.rest-client).
+# Click "Send Request" above any request. Requests are separated by ###.
+#
+# Before you start:
+#   1. Run the server: npm run dev
+#   2. Set @employeeId below to the id of a user that exists (check with npm run db:studio).
+#   3. Run "Create shift" first: later requests reuse its id via {{createShift.response.body.id}}.
+
+@baseUrl = http://localhost:3000/api
+@employeeId = 2
+
+### ---------------------------------------------------------------
+### HAPPY PATH
+### ---------------------------------------------------------------
+
+### Create shift (201)
+# @name createShift
+POST {{baseUrl}}/shifts
+Content-Type: application/json
+
+{
+  "title": "Morning shift",
+  "startTime": "2026-12-01T08:00:00Z",
+  "endTime": "2026-12-01T16:00:00Z",
+  "position": "Kitchen",
+  "notes": "Prep for lunch rush",
+  "employeeId": {{employeeId}}
+}
+
+### Create unassigned shift (201, no overlap check)
+POST {{baseUrl}}/shifts
+Content-Type: application/json
+
+{
+  "title": "Open evening shift",
+  "startTime": "2026-12-01T16:00:00Z",
+  "endTime": "2026-12-01T22:00:00Z",
+  "position": "Cashier"
+}
+
+### List all shifts (200, ordered by startTime)
+GET {{baseUrl}}/shifts
+
+### List shifts in December for one employee (200)
+GET {{baseUrl}}/shifts?from=2026-12-01T00:00:00Z&to=2027-01-01T00:00:00Z&employeeId={{employeeId}}
+
+### Get one shift (200)
+GET {{baseUrl}}/shifts/{{createShift.response.body.id}}
+
+### Update shift: change only endTime (200, checked against the stored startTime)
+PUT {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Content-Type: application/json
+
+{
+  "endTime": "2026-12-01T17:00:00Z"
+}
+
+### Update shift: clear position and notes (200)
+PUT {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Content-Type: application/json
+
+{
+  "position": null,
+  "notes": null
+}
+
+### Update shift: unassign the employee (200)
+PUT {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Content-Type: application/json
+
+{
+  "employeeId": null
+}
+
+### Delete shift (204, no body). Run this LAST: the id is gone afterwards.
+DELETE {{baseUrl}}/shifts/{{createShift.response.body.id}}
+
+### ---------------------------------------------------------------
+### SHOULD FAIL
+### (Run "Create shift" again first, so there is a shift to clash with.)
+### ---------------------------------------------------------------
+
+### 400 VALIDATION_ERROR: end before start
+POST {{baseUrl}}/shifts
+Content-Type: application/json
+
+{
+  "title": "Backwards shift",
+  "startTime": "2026-12-02T16:00:00Z",
+  "endTime": "2026-12-02T08:00:00Z"
+}
+
+### 400 VALIDATION_ERROR: longer than 16 hours
+POST {{baseUrl}}/shifts
+Content-Type: application/json
+
+{
+  "title": "Marathon shift",
+  "startTime": "2026-12-02T06:00:00Z",
+  "endTime": "2026-12-03T00:00:00Z"
+}
+
+### 400 VALIDATION_ERROR: only startTime sent, but it's after the stored endTime
+PUT {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Content-Type: application/json
+
+{
+  "startTime": "2026-12-01T20:00:00Z"
+}
+
+### 400 VALIDATION_ERROR: empty update body
+PUT {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Content-Type: application/json
+
+{}
+
+### 400 VALIDATION_ERROR: invalid uuid
+GET {{baseUrl}}/shifts/not-a-uuid
+
+### 404 SHIFT_NOT_FOUND: valid uuid that doesn't exist
+GET {{baseUrl}}/shifts/00000000-0000-4000-8000-000000000000
+
+### 404 SHIFT_NOT_FOUND: delete a shift that doesn't exist
+DELETE {{baseUrl}}/shifts/00000000-0000-4000-8000-000000000000
+
+### 409 SHIFT_OVERLAP: same employee, overlaps "Morning shift" (08:00-16:00)
+POST {{baseUrl}}/shifts
+Content-Type: application/json
+
+{
+  "title": "Clashing shift",
+  "startTime": "2026-12-01T12:00:00Z",
+  "endTime": "2026-12-01T18:00:00Z",
+  "employeeId": {{employeeId}}
+}
+
+### 400 INVALID_REFERENCE: employeeId that doesn't exist
+POST {{baseUrl}}/shifts
+Content-Type: application/json
+
+{
+  "title": "Ghost employee shift",
+  "startTime": "2026-12-05T08:00:00Z",
+  "endTime": "2026-12-05T16:00:00Z",
+  "employeeId": 999999
+}
+
+### 400 VALIDATION_ERROR: "from" after "to"
+GET {{baseUrl}}/shifts?from=2026-12-31T00:00:00Z&to=2026-12-01T00:00:00Z
+
+### 404 ROUTE_NOT_FOUND: unknown route
+GET {{baseUrl}}/nope
