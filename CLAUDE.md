@@ -33,21 +33,30 @@ ShiftHub/
 │   └── .env.example
 └── server/
     ├── prisma/
-    │   ├── schema.prisma    # models: User, Shift
+    │   ├── schema.prisma    # models: User, Shift; enum Role (MANAGER, EMPLOYEE)
     │   └── migrations/      # committed SQL migrations
     ├── prisma.config.ts     # Prisma CLI config (DB URL lives here, not in schema)
     ├── requests/
-    │   └── shifts.http      # VS Code REST Client examples (happy path + failing cases)
+    │   ├── shifts.http      # VS Code REST Client examples (happy path + failing cases)
+    │   └── auth.http        # register, login, /me examples (saves the token via # @name login)
     ├── src/
-    │   ├── index.ts         # loads dotenv, starts server on PORT (default 3000)
+    │   ├── index.ts         # loads dotenv, validates env, starts server on PORT (default 3000)
     │   ├── app.ts           # express app, CORS, mounts routers, then notFound + errorHandler LAST
-    │   ├── lib/prisma.ts    # shared PrismaClient
+    │   ├── config/
+    │   │   └── env.ts       # Zod check of env vars at startup (exits on bad config), exports typed `env`
+    │   ├── lib/
+    │   │   ├── prisma.ts    # shared PrismaClient
+    │   │   └── jwt.ts       # signToken / verifyToken (HS256), AuthUser type
+    │   ├── types/
+    │   │   └── express.d.ts # adds req.user (AuthUser) to Express's Request type
     │   ├── routes/          # one router per resource: URL + method -> validate() -> controller
     │   ├── controllers/     # <resource>.controller.ts: HTTP in/out and status codes only
     │   ├── services/        # <resource>.service.ts: business rules + Prisma calls, no HTTP
     │   ├── schemas/         # <resource>.schema.ts: Zod schemas + z.infer types
     │   ├── middleware/
     │   │   ├── validate.ts      # validate({ params, body, query }) with Zod, typed req
+    │   │   ├── requireAuth.ts   # Bearer JWT in Authorization header -> req.user, else 401
+    │   │   ├── requireRole.ts   # requireRole(...roles), after requireAuth; wrong role -> 403
     │   │   ├── notFound.ts      # unmatched routes -> AppError 404
     │   │   └── errorHandler.ts  # turns every error into the error response format
     │   ├── errors/
@@ -83,7 +92,7 @@ After changing a feature, verify with `npm run build` (both apps) and `npm run l
 ## Deployment
 
 - **Vercel** (frontend): root directory `client`, Vite preset. Env: `VITE_API_URL` (the Render API URL, no trailing slash). `VITE_` variables are baked in at build time and are public, so changing one requires a redeploy and they must never hold secrets.
-- **Render** (API): root directory `server`, build command `npm install --include=dev && npm run build:render`, start command `npm start`. Env: `DATABASE_URL`, `CLIENT_URL` (the Vercel URL, no trailing slash), `NODE_ENV=production`. Render sets `PORT` itself. `--include=dev` is required: with `NODE_ENV=production`, plain `npm install` skips devDependencies, and the build needs `prisma` and `typescript` from there. Build order: install → `prisma generate` → `tsc` → `prisma migrate deploy` (migrations last, so a failed build never touches the database). Migrations run during the build because the free tier has no pre-deploy command.
+- **Render** (API): root directory `server`, build command `npm install --include=dev && npm run build:render`, start command `npm start`. Env: `DATABASE_URL`, `CLIENT_URL` (the Vercel URL, no trailing slash), `NODE_ENV=production`, `JWT_SECRET` (different from the local one), optionally `JWT_EXPIRES_IN`. Render sets `PORT` itself. `--include=dev` is required: with `NODE_ENV=production`, plain `npm install` skips devDependencies, and the build needs `prisma` and `typescript` from there. Build order: install → `prisma generate` → `tsc` → `prisma migrate deploy` (migrations last, so a failed build never touches the database). Migrations run during the build because the free tier has no pre-deploy command.
 - Live URLs: frontend https://shifthub-red.vercel.app, API https://shifthub-api-d1zy.onrender.com/api/health (free tier, cold start up to ~50 s).
 
 ## Environment variables
@@ -96,6 +105,8 @@ After changing a feature, verify with `npm run build` (both apps) and `npm run l
 | `CLIENT_URL` | server | Only origin allowed by CORS (default http://localhost:5173) |
 | `DATABASE_URL` | server | Neon PostgreSQL connection string (pooled) |
 | `DIRECT_URL` | server, optional | Direct Neon URL, used only by the Prisma CLI for migrations |
+| `JWT_SECRET` | server | Signs login tokens. Required, at least 32 characters; the server won't start without it. Changing it logs everyone out |
+| `JWT_EXPIRES_IN` | server, optional | Token lifetime: a number plus `s`, `m`, `h` or `d` (default `1d`) |
 
 When adding a variable, also add it to the matching `.env.example` with a **placeholder** value.
 
@@ -125,6 +136,10 @@ Every API error uses this shape (built in `src/middleware/errorHandler.ts`):
 | --- | --- | --- | --- |
 | `ZodError` | 400 | `VALIDATION_ERROR` | field errors, e.g. `{ "endTime": ["..."] }`; object-level errors become `message` |
 | `AppError` | its `statusCode` | its `code` (e.g. `SHIFT_NOT_FOUND`, `SHIFT_OVERLAP`) | its `details`, if set |
+| `AppError` (auth) | 401 | `UNAUTHORIZED`: missing/malformed header, invalid or expired token, user deleted | none |
+| `AppError` (auth) | 401 | `INVALID_CREDENTIALS`: wrong password or unknown email (same message for both) | none |
+| `AppError` (auth) | 403 | `FORBIDDEN`: logged in, but role not allowed by `requireRole` | none |
+| `AppError` (auth) | 409 | `EMAIL_TAKEN`: register with an existing email (Prisma `P2002`, caught in the service) | none |
 | Prisma `P2025` | 404 | `NOT_FOUND` | none |
 | Prisma `P2003` | 400 | `INVALID_REFERENCE` | none |
 | unknown route | 404 | `ROUTE_NOT_FOUND` | none |

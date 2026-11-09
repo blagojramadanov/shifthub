@@ -1,0 +1,86 @@
+# Auth API examples for the VS Code "REST Client" extension (humao.rest-client).
+# Click "Send Request" above any request. Requests are separated by ###.
+#
+# Run them top to bottom: later requests reuse the registered email and the login token.
+# "Register" uses a new email each time ({{$timestamp}}), so you can re-run the file.
+
+@baseUrl = http://localhost:3000/api
+@password = correct-horse-battery
+
+### ---------------------------------------------------------------
+### HAPPY PATH
+### ---------------------------------------------------------------
+
+### Register (201, returns { token, user }, role is always EMPLOYEE)
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "Test.User+{{$timestamp}}@Example.com",
+  "password": "{{password}}"
+}
+
+### Login (200). Saves the token for the /me requests below.
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{register.response.body.user.email}}",
+  "password": "{{password}}"
+}
+
+### Current user (200)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{login.response.body.token}}
+
+### ---------------------------------------------------------------
+### SHOULD FAIL
+### ---------------------------------------------------------------
+
+### 409 EMAIL_TAKEN: same email as "Register" (different case: still taken)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Copycat",
+  "email": "{{register.request.body.$.email}}",
+  "password": "{{password}}"
+}
+
+### 400 VALIDATION_ERROR: empty name, invalid email, short password
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "",
+  "email": "not-an-email",
+  "password": "short"
+}
+
+### 401 INVALID_CREDENTIALS: wrong password
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{register.response.body.user.email}}",
+  "password": "wrong-password"
+}
+
+### 401 INVALID_CREDENTIALS: unknown email (same message as wrong password)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "nobody@example.com",
+  "password": "{{password}}"
+}
+
+### 401 UNAUTHORIZED: /me without a token
+GET {{baseUrl}}/auth/me
+
+### 401 UNAUTHORIZED: /me with a broken token
+GET {{baseUrl}}/auth/me
+Authorization: Bearer this.is-not.a-valid-token

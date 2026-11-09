@@ -122,6 +122,9 @@ Open http://localhost:5173. The status box should show **API connected**.
 | Method | Endpoint | Description | Success |
 | --- | --- | --- | --- |
 | GET | `/api/health` | API and database status | 200 |
+| POST | `/api/auth/register` | Create an account (`name`, `email`, `password`), returns `{ token, user }` | 201 |
+| POST | `/api/auth/login` | Log in (`email`, `password`), returns `{ token, user }` | 200 |
+| GET | `/api/auth/me` | Current user (header `Authorization: Bearer <token>`) | 200 |
 | GET | `/api/shifts` | List shifts, ordered by start time | 200 |
 | GET | `/api/shifts/:id` | Get one shift | 200 |
 | POST | `/api/shifts` | Create a shift | 201 |

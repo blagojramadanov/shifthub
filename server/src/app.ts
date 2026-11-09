@@ -2,6 +2,7 @@ import cors from 'cors'
 import express from 'express'
 import { errorHandler } from './middleware/errorHandler.js'
 import { notFound } from './middleware/notFound.js'
+import authRouter from './routes/auth.js'
 import healthRouter from './routes/health.js'
 import shiftsRouter from './routes/shifts.js'
 
@@ -15,6 +16,7 @@ app.use(cors({ origin: CLIENT_URL }))
 app.use(express.json())
 
 app.use('/api/health', healthRouter)
+app.use('/api/auth', authRouter)
 app.use('/api/shifts', shiftsRouter)
 
 // These two must stay LAST: notFound catches unmatched routes,
