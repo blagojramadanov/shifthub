@@ -125,7 +125,7 @@ Open http://localhost:5173. The status box should show **API connected**.
 | GET | `/api/shifts` | List shifts, ordered by start time | 200 |
 | GET | `/api/shifts/:id` | Get one shift | 200 |
 | POST | `/api/shifts` | Create a shift | 201 |
-| PUT | `/api/shifts/:id` | Update a shift (send only the fields to change) | 200 |
+| PATCH | `/api/shifts/:id` | Update a shift (send only the fields to change) | 200 |
 | DELETE | `/api/shifts/:id` | Delete a shift | 204 |
 
 Ready-to-run examples for every endpoint, including failing cases, are in [`server/requests/shifts.http`](server/requests/shifts.http) (VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension).

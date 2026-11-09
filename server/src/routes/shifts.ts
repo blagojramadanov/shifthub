@@ -14,7 +14,8 @@ const router = Router()
 router.get('/', validate({ query: listShiftsQuerySchema }), shiftController.list)
 router.get('/:id', validate({ params: shiftIdParamSchema }), shiftController.getById)
 router.post('/', validate({ body: createShiftSchema }), shiftController.create)
-router.put(
+// PATCH = partial update: send only the fields you want to change.
+router.patch(
   '/:id',
   validate({ params: shiftIdParamSchema, body: updateShiftSchema }),
   shiftController.update,
