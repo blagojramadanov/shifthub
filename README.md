@@ -23,7 +23,7 @@ ShiftHub is a full-stack web app for planning and managing work shifts. It has a
 ## Project structure
 
 ```
-ShiftHub/
+shifthub/
 ├── client/                 # React + Vite frontend
 │   ├── src/
 │   │   ├── App.tsx         # Landing page with API status
@@ -35,16 +35,21 @@ ShiftHub/
     │   ├── schema.prisma   # Database schema
     │   └── migrations/     # SQL migration history
     ├── prisma.config.ts    # Prisma CLI configuration
-    ├── requests/           # REST Client examples (shifts.http)
+    ├── requests/           # REST Client examples (shifts.http, auth.http)
     ├── src/
     │   ├── index.ts        # Server entry point
     │   ├── app.ts          # Express app and middleware
-    │   ├── lib/prisma.ts   # Shared Prisma client
+    │   ├── config/env.ts   # Environment variable validation
+    │   ├── lib/
+    │   │   ├── prisma.ts   # Shared Prisma client
+    │   │   └── jwt.ts      # Sign and verify login tokens
+    │   ├── types/
+    │   │   └── express.d.ts # Adds req.user to Express's Request type
     │   ├── routes/         # URL + method -> validation -> controller
     │   ├── controllers/    # HTTP in/out, status codes
     │   ├── services/       # Business rules and database access
     │   ├── schemas/        # Zod validation schemas
-    │   ├── middleware/     # validate, notFound, errorHandler
+    │   ├── middleware/     # validate, requireAuth, requireRole, notFound, errorHandler
     │   └── errors/         # AppError class
     └── .env.example
 ```
@@ -59,8 +64,8 @@ ShiftHub/
 ### 1. Clone and install
 
 ```bash
-git clone <https://github.com/blagojramadanov/shifthub.git>
-cd ShiftHub
+git clone https://github.com/blagojramadanov/shifthub.git
+cd shifthub
 
 cd server && npm install
 cd ../client && npm install
@@ -82,6 +87,14 @@ PORT=3000
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=verify-full"
+JWT_SECRET=replace-with-at-least-32-random-characters
+JWT_EXPIRES_IN=1d
+```
+
+`JWT_SECRET` signs login tokens and must be at least 32 characters; the server won't start without it. Generate a random one with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
 **`client/.env`**
@@ -95,9 +108,10 @@ VITE_API_URL=http://localhost:3000
 ```bash
 cd server
 npx prisma migrate dev
+npx prisma generate
 ```
 
-This applies all migrations and generates the Prisma client.
+The first command applies all migrations to your database. The second generates the Prisma client into `src/generated/`, because Prisma 7 no longer does this as part of `migrate dev`. (`npm run dev` and `npm run build` also run `prisma generate` for you.)
 
 ### 4. Start the development servers
 
@@ -131,7 +145,14 @@ Open http://localhost:5173. The status box should show **API connected**.
 | PATCH | `/api/shifts/:id` | Update a shift (send only the fields to change) | 200 |
 | DELETE | `/api/shifts/:id` | Delete a shift | 204 |
 
-Ready-to-run examples for every endpoint, including failing cases, are in [`server/requests/shifts.http`](server/requests/shifts.http) (VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension).
+Ready-to-run examples for every endpoint, including failing cases, are in [`server/requests/shifts.http`](server/requests/shifts.http) and [`server/requests/auth.http`](server/requests/auth.http) (VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension).
+
+### Authentication
+
+- Register or log in to get a JWT, then send it with each request as `Authorization: Bearer <token>`. Tokens expire after `JWT_EXPIRES_IN` (default 1 day).
+- There are two roles: `MANAGER` and `EMPLOYEE`. Register always creates an `EMPLOYEE`; a manager has to be promoted in the database.
+- Passwords are hashed with bcrypt and never returned by the API. Login gives the same error for an unknown email and a wrong password.
+- The shift routes are **not protected yet**: they work without a token for now.
 
 ### Shifts
 
@@ -202,16 +223,20 @@ Every error has the same shape:
 | --- | --- | --- |
 | 400 | `VALIDATION_ERROR` | Invalid body, params or query (`details` lists errors per field) |
 | 400 | `INVALID_REFERENCE` | `employeeId` doesn't match an existing user |
+| 401 | `UNAUTHORIZED` | Missing, invalid or expired token |
+| 401 | `INVALID_CREDENTIALS` | Wrong email or password |
+| 403 | `FORBIDDEN` | Logged in, but your role isn't allowed to do this |
 | 404 | `SHIFT_NOT_FOUND` | No shift with this id |
 | 404 | `ROUTE_NOT_FOUND` | Unknown URL |
 | 409 | `SHIFT_OVERLAP` | Employee already has a shift during this time |
+| 409 | `EMAIL_TAKEN` | An account with this email already exists |
 | 500 | `INTERNAL_ERROR` | Unexpected server error (no details in production) |
 
 ## Roadmap
 
 - [x] Shifts CRUD API with validation and overlap checks
 - [ ] Shifts UI (create, view, edit and delete shifts in the frontend)
-- [ ] Authentication with JWT and role-based access (admin, manager, employee)
+- [ ] Authentication with JWT and role-based access (roles: manager, employee). **In progress:** backend done; protected routes and login UI next
 - [ ] Calendar UI for weekly and monthly schedules
 - [ ] Real-time schedule updates
 - [ ] Automated tests for the client and server
