@@ -13,12 +13,20 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  MANAGER
+  EMPLOYEE
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  shifts    Shift[]
+  id           Int      @id @default(autoincrement())
+  email        String   @unique // always stored lowercase
+  name         String?
+  // bcrypt hash of the password, never the password itself. Never return it from the API.
+  passwordHash String
+  role         Role     @default(EMPLOYEE)
+  createdAt    DateTime @default(now())
+  shifts       Shift[]
 }
 
 model Shift {
