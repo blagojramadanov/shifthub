@@ -1,5 +1,6 @@
 import { AppError } from '../errors/AppError.js'
 import type { Prisma } from '../generated/prisma/client.js'
+import type { Role } from '../generated/prisma/enums.js'
 import { prisma } from '../lib/prisma.js'
 import {
   getShiftTimeError,
@@ -14,8 +15,28 @@ const shiftInclude = {
   employee: { select: { id: true, name: true, email: true } },
 } satisfies Prisma.ShiftInclude
 
+// Who is making the request. A plain object, so this service knows nothing about
+// Express or JWTs: the controller builds it from req.user.
+export type Actor = { id: number; role: Role }
+
 function shiftNotFound(): AppError {
   return new AppError(404, 'Shift not found', 'SHIFT_NOT_FOUND')
+}
+
+function forbidden(): AppError {
+  return new AppError(403, 'You do not have permission to do this', 'FORBIDDEN')
+}
+
+// Second guard behind requireRole('MANAGER') on the routes, in case a route ever forgets it.
+function assertManager(actor: Actor): void {
+  if (actor.role !== 'MANAGER') throw forbidden()
+}
+
+// Which shifts a caller may see. Managers see everything. Employees see their
+// own shifts plus open (unassigned) ones. Spread into any `where` to apply it.
+function visibleShiftsWhere(actor: Actor): Prisma.ShiftWhereInput {
+  if (actor.role === 'MANAGER') return {}
+  return { OR: [{ employeeId: actor.id }, { employeeId: null }] }
 }
 
 // Rule: an employee can't work two shifts at the same time.
@@ -45,11 +66,20 @@ async function assertNoOverlap(
   }
 }
 
-export async function listShifts(query: ListShiftsQuery) {
+export async function listShifts(query: ListShiftsQuery, actor: Actor) {
   const { from, to, employeeId } = query
+
+  // Employees may filter by their own id only. employeeId is already a number here
+  // (validate() replaced req.query with the Zod-parsed values), so !== is safe.
+  if (actor.role === 'EMPLOYEE' && employeeId !== undefined && employeeId !== actor.id) {
+    throw forbidden()
+  }
 
   return prisma.shift.findMany({
     where: {
+      // Top-level keys are combined with AND: "visible to the actor" AND the filters below.
+      // An employee filtering by their own id gets only their assigned shifts (no open ones).
+      ...visibleShiftsWhere(actor),
       employeeId,
       // Every shift that overlaps the from/to window, including a night shift
       // that started before "from". Prisma ignores filters set to undefined.
@@ -61,13 +91,21 @@ export async function listShifts(query: ListShiftsQuery) {
   })
 }
 
-export async function getShiftById(id: string) {
-  const shift = await prisma.shift.findUnique({ where: { id }, include: shiftInclude })
+export async function getShiftById(id: string, actor: Actor) {
+  // findFirst instead of findUnique, because the where also has the visibility rule.
+  // A shift the employee may not see gives the same 404 as one that doesn't exist,
+  // so they can't find out it exists.
+  const shift = await prisma.shift.findFirst({
+    where: { id, ...visibleShiftsWhere(actor) },
+    include: shiftInclude,
+  })
   if (!shift) throw shiftNotFound()
   return shift
 }
 
-export async function createShift(data: CreateShiftInput) {
+export async function createShift(data: CreateShiftInput, actor: Actor) {
+  assertManager(actor)
+
   // Unassigned shifts can't clash with anything.
   if (data.employeeId != null) {
     await assertNoOverlap(data.employeeId, data.startTime, data.endTime)
@@ -77,7 +115,9 @@ export async function createShift(data: CreateShiftInput) {
   return prisma.shift.create({ data, include: shiftInclude })
 }
 
-export async function updateShift(id: string, data: UpdateShiftInput) {
+export async function updateShift(id: string, data: UpdateShiftInput, actor: Actor) {
+  assertManager(actor)
+
   const existing = await prisma.shift.findUnique({ where: { id } })
   if (!existing) throw shiftNotFound()
 
@@ -101,7 +141,9 @@ export async function updateShift(id: string, data: UpdateShiftInput) {
   return prisma.shift.update({ where: { id }, data, include: shiftInclude })
 }
 
-export async function deleteShift(id: string): Promise<void> {
+export async function deleteShift(id: string, actor: Actor): Promise<void> {
+  assertManager(actor)
+
   // deleteMany doesn't throw when nothing matches; it reports how many rows it removed.
   const { count } = await prisma.shift.deleteMany({ where: { id } })
   if (count === 0) throw shiftNotFound()

@@ -6,6 +6,7 @@
 
 @baseUrl = http://localhost:3000/api
 @password = correct-horse-battery
+@devPassword = Test1234!
 
 ### ---------------------------------------------------------------
 ### HAPPY PATH
@@ -18,7 +19,7 @@ Content-Type: application/json
 
 {
   "name": "Test User",
-  "email": "Test.User+{{$timestamp}}@Example.com",
+  "email": "user{{$timestamp}}@shifthub.dev",
   "password": "{{password}}"
 }
 
@@ -84,3 +85,38 @@ GET {{baseUrl}}/auth/me
 ### 401 UNAUTHORIZED: /me with a broken token
 GET {{baseUrl}}/auth/me
 Authorization: Bearer this.is-not.a-valid-token
+
+### ---------------------------------------------------------------
+### DEV USERS (run once per database, used by shifts.http)
+### Blagoj is already registered (id 9). After registering, promote
+### Blagoj to MANAGER in Prisma Studio, then run "Login Blagoj".
+### ---------------------------------------------------------------
+
+### Register Ana (201, EMPLOYEE). 409 if she already exists.
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Ana",
+  "email": "ana@shifthub.dev",
+  "password": "{{devPassword}}"
+}
+
+### Register Marko (201, EMPLOYEE). 409 if he already exists.
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Marko",
+  "email": "marko@shifthub.dev",
+  "password": "{{devPassword}}"
+}
+
+### Login Blagoj (200). After promotion: "role": "MANAGER"
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "blagoj@shifthub.dev",
+  "password": "{{devPassword}}"
+}

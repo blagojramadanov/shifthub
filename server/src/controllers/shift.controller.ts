@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import { AppError } from '../errors/AppError.js'
 import type {
   CreateShiftInput,
   ListShiftsQuery,
@@ -13,27 +14,35 @@ import * as shiftService from '../services/shift.service.js'
 
 type NoParams = Record<string, string>
 
+// Turns req.user (set by requireAuth) into the plain Actor the service expects.
+// requireAuth always runs first, but TypeScript can't know that: req.user is optional.
+// It accepts any request with a `user`, so it works with every typed Request<...> below.
+function getActor(req: Pick<Request, 'user'>): shiftService.Actor {
+  if (!req.user) throw new AppError(401, 'Authentication required', 'UNAUTHORIZED')
+  return { id: req.user.id, role: req.user.role }
+}
+
 export async function list(req: Request<NoParams, unknown, unknown, ListShiftsQuery>, res: Response) {
-  const shifts = await shiftService.listShifts(req.query)
+  const shifts = await shiftService.listShifts(req.query, getActor(req))
   res.json(shifts)
 }
 
 export async function getById(req: Request<ShiftIdParams>, res: Response) {
-  const shift = await shiftService.getShiftById(req.params.id)
+  const shift = await shiftService.getShiftById(req.params.id, getActor(req))
   res.json(shift)
 }
 
 export async function create(req: Request<NoParams, unknown, CreateShiftInput>, res: Response) {
-  const shift = await shiftService.createShift(req.body)
+  const shift = await shiftService.createShift(req.body, getActor(req))
   res.status(201).json(shift)
 }
 
 export async function update(req: Request<ShiftIdParams, unknown, UpdateShiftInput>, res: Response) {
-  const shift = await shiftService.updateShift(req.params.id, req.body)
+  const shift = await shiftService.updateShift(req.params.id, req.body, getActor(req))
   res.json(shift)
 }
 
 export async function remove(req: Request<ShiftIdParams>, res: Response) {
-  await shiftService.deleteShift(req.params.id)
+  await shiftService.deleteShift(req.params.id, getActor(req))
   res.status(204).end()
 }

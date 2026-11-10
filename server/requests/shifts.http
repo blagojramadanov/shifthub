@@ -1,24 +1,65 @@
 # Shift API examples for the VS Code "REST Client" extension (humao.rest-client).
 # Click "Send Request" above any request. Requests are separated by ###.
 #
+# All shift routes need a login. GET works for everyone; POST/PATCH/DELETE are MANAGER only.
+#
 # Before you start:
 #   1. Run the server: npm run dev
-#   2. Set @employeeId below to the id of a user that exists (check with npm run db:studio).
-#   3. Run "Create shift" first: later requests reuse its id via {{createShift.response.body.id}}.
+#   2. You need three users (register them with requests/auth.http):
+#        - a MANAGER: register normally, then change "role" to MANAGER in npm run db:studio.
+#          Log in AFTER changing the role: an old token still carries the old role.
+#        - an EMPLOYEE you log in as (@employeeEmail, id = @employeeId)
+#        - ANOTHER employee (id = @otherEmployeeId), only used as a shift owner
+#      Fill in the emails and ids below.
+#   3. Run both logins, then "Create shift": later requests reuse its id via {{createShift.response.body.id}}.
 #   4. If "Create shift" returns 409 because of old test data, change @day (and @nextDay) to a free date.
+#
+# Dev branch users: Blagoj (id 9, MANAGER), Ana (id 10, EMPLOYEE), Marko (id 11, EMPLOYEE)
 
 @baseUrl = http://localhost:3000/api
-@employeeId = 2
+@password = Test1234!
+@managerEmail = blagoj@shifthub.dev
+@employeeEmail = ana@shifthub.dev
+@employeeId = 10
+@otherEmployeeId = 11
 @day = 2026-12-20
 @nextDay = 2026-12-21
 
+@managerAuth = Bearer {{managerLogin.response.body.token}}
+@employeeAuth = Bearer {{employeeLogin.response.body.token}}
+
 ### ---------------------------------------------------------------
-### HAPPY PATH
+### LOGIN (run these first)
+### ---------------------------------------------------------------
+
+### Manager login (200)
+# @name managerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{managerEmail}}",
+  "password": "{{password}}"
+}
+
+### Employee login (200)
+# @name employeeLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{employeeEmail}}",
+  "password": "{{password}}"
+}
+
+### ---------------------------------------------------------------
+### HAPPY PATH (manager)
 ### ---------------------------------------------------------------
 
 ### Create shift (201)
 # @name createShift
 POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -32,6 +73,7 @@ Content-Type: application/json
 
 ### Create unassigned shift (201, no overlap check)
 POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -41,17 +83,34 @@ Content-Type: application/json
   "position": "Cashier"
 }
 
-### List all shifts (200, ordered by startTime)
+### Create shift for ANOTHER employee (201). The employee tests below use its id.
+# @name otherShift
+POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
+Content-Type: application/json
+
+{
+  "title": "Someone else's shift",
+  "startTime": "{{day}}T08:00:00Z",
+  "endTime": "{{day}}T16:00:00Z",
+  "employeeId": {{otherEmployeeId}}
+}
+
+### List all shifts (200, ordered by startTime, every employee)
 GET {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 
 ### List shifts in December for one employee (200)
 GET {{baseUrl}}/shifts?from=2026-12-01T00:00:00Z&to=2027-01-01T00:00:00Z&employeeId={{employeeId}}
+Authorization: {{managerAuth}}
 
 ### Get one shift (200)
 GET {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 
 ### PATCH: change only endTime (200, checked against the stored startTime)
 PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -60,9 +119,11 @@ Content-Type: application/json
 
 ### CHECK (200): position must still be "Kitchen" and notes unchanged after the PATCH above
 GET {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 
 ### PATCH: clear position and notes (200)
 PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -72,6 +133,7 @@ Content-Type: application/json
 
 ### PATCH: unassign the employee (200)
 PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -80,22 +142,81 @@ Content-Type: application/json
 
 ### PATCH: change only employeeId (200, overlap checked with the stored times)
 PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
   "employeeId": {{employeeId}}
 }
 
-### Delete shift (204, no body). Run this LAST: the id is gone afterwards.
-DELETE {{baseUrl}}/shifts/{{createShift.response.body.id}}
+### ---------------------------------------------------------------
+### EMPLOYEE (what an employee can and can't see)
+### ---------------------------------------------------------------
+
+### List (200): only their own shifts + open shifts. "Someone else's shift" must NOT appear.
+GET {{baseUrl}}/shifts
+Authorization: {{employeeAuth}}
+
+### List with from/to (200): the same rule, inside the time window
+GET {{baseUrl}}/shifts?from=2026-12-01T00:00:00Z&to=2027-01-01T00:00:00Z
+Authorization: {{employeeAuth}}
+
+### List filtered by their OWN id (200): only their assigned shifts, no open ones
+GET {{baseUrl}}/shifts?employeeId={{employeeId}}
+Authorization: {{employeeAuth}}
+
+### Get their own shift (200)
+GET {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{employeeAuth}}
 
 ### ---------------------------------------------------------------
 ### SHOULD FAIL
-### (Run "Create shift" again first, so there is a shift to clash with.)
+### ("Morning shift" from createShift must still exist for the 409 test.
+###  Do NOT run "Create shift" again: it would itself return 409.)
 ### ---------------------------------------------------------------
+
+### 401 UNAUTHORIZED: no token
+GET {{baseUrl}}/shifts
+
+### 401 UNAUTHORIZED: broken token
+GET {{baseUrl}}/shifts
+Authorization: Bearer this.is-not.a-valid-token
+
+### 403 FORBIDDEN: employee filters by someone else's id
+GET {{baseUrl}}/shifts?employeeId={{otherEmployeeId}}
+Authorization: {{employeeAuth}}
+
+### 404 SHIFT_NOT_FOUND: employee opens someone else's shift (hidden, not 403)
+GET {{baseUrl}}/shifts/{{otherShift.response.body.id}}
+Authorization: {{employeeAuth}}
+
+### 403 FORBIDDEN: employee creates a shift
+POST {{baseUrl}}/shifts
+Authorization: {{employeeAuth}}
+Content-Type: application/json
+
+{
+  "title": "Self-scheduled shift",
+  "startTime": "{{day}}T08:00:00Z",
+  "endTime": "{{day}}T16:00:00Z"
+}
+
+### 403 FORBIDDEN: employee edits a shift
+PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{employeeAuth}}
+Content-Type: application/json
+
+{
+  "title": "Renamed by employee"
+}
+
+### 403 FORBIDDEN: employee deletes a shift
+DELETE {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{employeeAuth}}
 
 ### 400 VALIDATION_ERROR: end before start
 POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -106,6 +227,7 @@ Content-Type: application/json
 
 ### 400 VALIDATION_ERROR: longer than 16 hours
 POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -116,6 +238,7 @@ Content-Type: application/json
 
 ### 400 VALIDATION_ERROR: PATCH with only startTime, but it's after the stored endTime
 PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -124,29 +247,35 @@ Content-Type: application/json
 
 ### 400 VALIDATION_ERROR: PATCH with an empty body
 PATCH {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {}
 
 ### 400 VALIDATION_ERROR: invalid uuid
 GET {{baseUrl}}/shifts/not-a-uuid
+Authorization: {{managerAuth}}
 
 ### 404 SHIFT_NOT_FOUND: valid uuid that doesn't exist
 GET {{baseUrl}}/shifts/00000000-0000-4000-8000-000000000000
+Authorization: {{managerAuth}}
 
 ### 404 SHIFT_NOT_FOUND: delete a shift that doesn't exist
 DELETE {{baseUrl}}/shifts/00000000-0000-4000-8000-000000000000
+Authorization: {{managerAuth}}
 
 ### 404 ROUTE_NOT_FOUND: PUT no longer exists (we switched to PATCH)
 PUT {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
   "title": "Old PUT"
 }
 
-### 409 SHIFT_OVERLAP: same employee, overlaps "Morning shift" (08:00-16:00)
+### 409 SHIFT_OVERLAP: same employee, overlaps "Morning shift" (08:00-17:00 after the PATCH)
 POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -158,6 +287,7 @@ Content-Type: application/json
 
 ### 400 INVALID_REFERENCE: employeeId that doesn't exist
 POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
@@ -169,6 +299,19 @@ Content-Type: application/json
 
 ### 400 VALIDATION_ERROR: "from" after "to"
 GET {{baseUrl}}/shifts?from=2026-12-31T00:00:00Z&to=2026-12-01T00:00:00Z
+Authorization: {{managerAuth}}
 
 ### 404 ROUTE_NOT_FOUND: unknown route
 GET {{baseUrl}}/nope
+
+### ---------------------------------------------------------------
+### CLEANUP (run LAST: the ids are gone afterwards)
+### ---------------------------------------------------------------
+
+### Delete shift (204, no body)
+DELETE {{baseUrl}}/shifts/{{createShift.response.body.id}}
+Authorization: {{managerAuth}}
+
+### Delete the other employee's shift (204)
+DELETE {{baseUrl}}/shifts/{{otherShift.response.body.id}}
+Authorization: {{managerAuth}}
