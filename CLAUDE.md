@@ -12,6 +12,7 @@ ShiftHub ("Shift scheduling made simple") is a full-stack **portfolio project** 
 - React 19, TypeScript 6, Vite 8
 - Tailwind CSS v4 via the `@tailwindcss/vite` plugin. There is no `tailwind.config.js`; theme changes go in `@theme` in `src/index.css`.
 - ESLint 10 with `typescript-eslint` and `eslint-plugin-react-hooks` v7
+- React Router 8 (`react-router` package; `react-router-dom` no longer exists past v7), declarative mode: `BrowserRouter`, `Routes`, `Route`
 
 **Server** (`server/`)
 - Node.js 24, Express 5, TypeScript 7
@@ -25,11 +26,18 @@ ShiftHub ("Shift scheduling made simple") is a full-stack **portfolio project** 
 ShiftHub/
 ├── client/
 │   ├── src/
-│   │   ├── App.tsx          # Landing page + API status box
-│   │   ├── api.ts           # fetch helpers, reads VITE_API_URL
+│   │   ├── App.tsx          # routes: /login (public only), / (protected), * -> /
+│   │   ├── main.tsx         # StrictMode > BrowserRouter > AuthProvider > App
+│   │   ├── lib/
+│   │   │   └── api.ts       # apiFetch (adds Bearer token, throws ApiError), token storage, endpoints
+│   │   ├── auth/
+│   │   │   ├── AuthContext.tsx  # AuthProvider: checks saved token via /me, login(), logout()
+│   │   │   ├── useAuth.ts       # AuthContext object, AuthState type, useAuth() hook
+│   │   │   └── routeGuards.tsx  # ProtectedRoute, PublicOnlyRoute
+│   │   ├── pages/           # LoginPage, HomePage
 │   │   ├── vite-env.d.ts    # types for import.meta.env
-│   │   ├── main.tsx
 │   │   └── index.css        # @import "tailwindcss"
+│   ├── vercel.json          # SPA rewrite: every path serves index.html
 │   └── .env.example
 └── server/
     ├── prisma/
@@ -122,7 +130,7 @@ When adding a variable, also add it to the matching `.env.example` with a **plac
 - Express 5 forwards errors from async handlers automatically: **no try/catch wrappers or express-async-handler**. Throw `AppError` for expected errors.
 - When returning a User with another model, use `select` with an allow-list of safe fields (`id`, `name`, `email`), never `include: { employee: true }`.
 - Client styling uses Tailwind utility classes only. No separate CSS files per component.
-- Client API calls go through `client/src/api.ts`.
+- Client API calls go through `apiFetch` in `client/src/lib/api.ts`. Pass `auth: false` for requests that must not send the token or trigger the automatic logout on 401 (login, register).
 
 ## Error response format
 
