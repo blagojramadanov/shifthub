@@ -36,6 +36,13 @@ export function addDays(date: Date, n: number): Date {
   return d
 }
 
+// The same day at the given LOCAL time, e.g. withTime(day, 9, 0) = that day 09:00.
+export function withTime(date: Date, hours: number, minutes = 0): Date {
+  const d = new Date(date)
+  d.setHours(hours, minutes, 0, 0)
+  return d
+}
+
 // True when both dates fall on the same LOCAL calendar day (time ignored).
 export function isSameDay(a: Date, b: Date): boolean {
   return (
