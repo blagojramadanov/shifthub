@@ -25,6 +25,16 @@ function errorBody(message: string, code: string, details?: unknown): ErrorBody 
   return body
 }
 
+// express.json() throws a SyntaxError tagged with type 'entity.parse.failed' when the
+// request body isn't valid JSON (e.g. a missing quote). That's the client's mistake: 400, not 500.
+function isInvalidJsonError(err: unknown): boolean {
+  return (
+    err instanceof SyntaxError &&
+    'type' in err &&
+    (err as { type?: unknown }).type === 'entity.parse.failed'
+  )
+}
+
 // Express recognises an error handler by its 4 parameters (err, req, res, next).
 // In Express 5, errors thrown inside async route handlers land here automatically.
 export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
@@ -41,6 +51,13 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     const { formErrors, fieldErrors } = z.flattenError(err)
     const message = formErrors.length > 0 ? formErrors.join('; ') : 'Validation failed'
     res.status(400).json(errorBody(message, 'VALIDATION_ERROR', fieldErrors))
+    return
+  }
+
+  // The request body couldn't be parsed. The parser's own message is not passed on:
+  // it can quote parts of the body back.
+  if (isInvalidJsonError(err)) {
+    res.status(400).json(errorBody('Request body is not valid JSON', 'INVALID_JSON'))
     return
   }
 

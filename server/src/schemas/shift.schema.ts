@@ -59,15 +59,32 @@ export const shiftIdParamSchema = z.object({
   id: z.uuid(),
 })
 
-// Query params always arrive as strings, so "coerce" converts them first.
+// The longest window GET /api/shifts accepts (6 weeks, enough for a month view).
+const MAX_RANGE_DAYS = 42
+const MAX_RANGE_MS = MAX_RANGE_DAYS * 24 * 60 * 60 * 1000
+
+// A UTC date-time that must end in "Z" ("2026-11-08T23:00:00.000Z"). Without a timezone,
+// "2026-11-09T00:00" would be read in the SERVER's local time, which differs between
+// a dev PC and Render. The client sends date.toISOString(), which always ends in Z.
+const utcDateTime = z.iso.datetime().transform((value) => new Date(value))
+
+// Query params always arrive as strings, so "coerce" converts employeeId first.
 export const listShiftsQuerySchema = z
   .object({
-    from: z.coerce.date().optional(),
-    to: z.coerce.date().optional(),
+    from: utcDateTime.optional(),
+    to: utcDateTime.optional(),
     employeeId: z.coerce.number().int().positive().optional(),
+  })
+  // No path: an object-level problem, so the error handler shows it as the message.
+  .refine((q) => (q.from === undefined) === (q.to === undefined), {
+    message: '"from" and "to" must be given together',
   })
   .refine((q) => !q.from || !q.to || q.from < q.to, {
     message: '"from" must be before "to"',
+    path: ['to'],
+  })
+  .refine((q) => !q.from || !q.to || q.to.getTime() - q.from.getTime() <= MAX_RANGE_MS, {
+    message: `The range from "from" to "to" can be at most ${MAX_RANGE_DAYS} days`,
     path: ['to'],
   })
 

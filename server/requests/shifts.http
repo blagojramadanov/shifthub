@@ -24,6 +24,9 @@
 @otherEmployeeId = 11
 @day = 2026-12-20
 @nextDay = 2026-12-21
+# The Mon-Mon week that contains @day (a Sunday). from/to must be UTC, ending in Z.
+@weekFrom = 2026-12-14T00:00:00Z
+@weekTo = 2026-12-21T00:00:00Z
 
 @managerAuth = Bearer {{managerLogin.response.body.token}}
 @employeeAuth = Bearer {{employeeLogin.response.body.token}}
@@ -98,6 +101,10 @@ Content-Type: application/json
 
 ### List all shifts (200, ordered by startTime, every employee)
 GET {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
+
+### List one week (200): every shift overlapping the week, oldest first. employee is { id, name } or null.
+GET {{baseUrl}}/shifts?from={{weekFrom}}&to={{weekTo}}
 Authorization: {{managerAuth}}
 
 ### List shifts in December for one employee (200)
@@ -297,9 +304,28 @@ Content-Type: application/json
   "employeeId": 999999
 }
 
-### 400 VALIDATION_ERROR: "from" after "to"
+### 400 VALIDATION_ERROR: "from" after "to" (details.to)
 GET {{baseUrl}}/shifts?from=2026-12-31T00:00:00Z&to=2026-12-01T00:00:00Z
 Authorization: {{managerAuth}}
+
+### 400 VALIDATION_ERROR: only "from" (message: "from" and "to" must be given together)
+GET {{baseUrl}}/shifts?from={{weekFrom}}
+Authorization: {{managerAuth}}
+
+### 400 VALIDATION_ERROR: range longer than 42 days (details.to)
+GET {{baseUrl}}/shifts?from=2026-12-01T00:00:00Z&to=2027-01-13T00:00:00Z
+Authorization: {{managerAuth}}
+
+### 400 VALIDATION_ERROR: "from" without Z (would be read in the server's local time)
+GET {{baseUrl}}/shifts?from=2026-12-14T00:00:00&to={{weekTo}}
+Authorization: {{managerAuth}}
+
+### 400 INVALID_JSON: broken body (missing closing quote and brace)
+POST {{baseUrl}}/shifts
+Authorization: {{managerAuth}}
+Content-Type: application/json
+
+{ "title": "Broken
 
 ### 404 ROUTE_NOT_FOUND: unknown route
 GET {{baseUrl}}/nope

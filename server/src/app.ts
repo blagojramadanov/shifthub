@@ -5,6 +5,7 @@ import { notFound } from './middleware/notFound.js'
 import authRouter from './routes/auth.js'
 import healthRouter from './routes/health.js'
 import shiftsRouter from './routes/shifts.js'
+import usersRouter from './routes/users.js'
 
 // Only this origin may call the API from a browser.
 // A trailing slash is removed because browsers send the Origin header without one.
@@ -18,6 +19,7 @@ app.use(express.json())
 app.use('/api/health', healthRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/shifts', shiftsRouter)
+app.use('/api/users', usersRouter)
 
 // These two must stay LAST: notFound catches unmatched routes,
 // errorHandler catches every error passed along from above.

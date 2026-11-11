@@ -9,10 +9,11 @@ import {
   type UpdateShiftInput,
 } from '../schemas/shift.schema.js'
 
-// The ONLY User fields ever returned with a shift. Using `select` (an allow-list)
-// means fields added to User later, like a password hash, stay hidden automatically.
+// The ONLY User fields ever returned with a shift: what the calendar shows, nothing more.
+// Using `select` (an allow-list) means fields added to User later, like a password hash,
+// stay hidden automatically.
 const shiftInclude = {
-  employee: { select: { id: true, name: true, email: true } },
+  employee: { select: { id: true, name: true } },
 } satisfies Prisma.ShiftInclude
 
 // Who is making the request. A plain object, so this service knows nothing about
@@ -77,14 +78,20 @@ export async function listShifts(query: ListShiftsQuery, actor: Actor) {
 
   return prisma.shift.findMany({
     where: {
-      // Top-level keys are combined with AND: "visible to the actor" AND the filters below.
+      // Two separate conditions, both required. With AND, no filter key can ever
+      // overwrite a key of the visibility rule (as spreading both into one object could).
       // An employee filtering by their own id gets only their assigned shifts (no open ones).
-      ...visibleShiftsWhere(actor),
-      employeeId,
-      // Every shift that overlaps the from/to window, including a night shift
-      // that started before "from". Prisma ignores filters set to undefined.
-      endTime: from ? { gt: from } : undefined,
-      startTime: to ? { lt: to } : undefined,
+      AND: [
+        visibleShiftsWhere(actor),
+        {
+          employeeId,
+          // Every shift that OVERLAPS the from/to window: it starts before the window ends
+          // and ends after it starts. So a Sun 22:00 - Mon 06:00 night shift is in both weeks.
+          // The schema guarantees from and to come together. Prisma ignores undefined filters.
+          startTime: to ? { lt: to } : undefined,
+          endTime: from ? { gt: from } : undefined,
+        },
+      ],
     },
     orderBy: { startTime: 'asc' },
     include: shiftInclude,

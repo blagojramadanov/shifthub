@@ -1,0 +1,59 @@
+# User list examples for the VS Code "REST Client" extension (humao.rest-client).
+# GET /api/users is MANAGER only. It returns only id, name, email and role, ordered by name.
+#
+# Run both logins first. Uses the dev users from auth.http / shifts.http.
+
+@baseUrl = http://localhost:3000/api
+@password = Test1234!
+@managerEmail = blagoj@shifthub.dev
+@employeeEmail = ana@shifthub.dev
+
+@managerAuth = Bearer {{managerLogin.response.body.token}}
+@employeeAuth = Bearer {{employeeLogin.response.body.token}}
+
+### Manager login (200)
+# @name managerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{managerEmail}}",
+  "password": "{{password}}"
+}
+
+### Employee login (200)
+# @name employeeLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{employeeEmail}}",
+  "password": "{{password}}"
+}
+
+### ---------------------------------------------------------------
+### HAPPY PATH
+### ---------------------------------------------------------------
+
+### All users as manager (200). No passwordHash, no createdAt.
+GET {{baseUrl}}/users
+Authorization: {{managerAuth}}
+
+### Only employees (200): what the shift form's employee select uses
+GET {{baseUrl}}/users?role=EMPLOYEE
+Authorization: {{managerAuth}}
+
+### ---------------------------------------------------------------
+### SHOULD FAIL
+### ---------------------------------------------------------------
+
+### 403 FORBIDDEN: employee
+GET {{baseUrl}}/users
+Authorization: {{employeeAuth}}
+
+### 401 UNAUTHORIZED: no token
+GET {{baseUrl}}/users
+
+### 400 VALIDATION_ERROR: unknown role (details.role)
+GET {{baseUrl}}/users?role=BOSS
+Authorization: {{managerAuth}}
