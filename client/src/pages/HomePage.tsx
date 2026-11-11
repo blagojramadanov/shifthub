@@ -1,4 +1,5 @@
 import { useAuth } from '../auth/useAuth'
+import { WeekCalendar } from '../components/calendar/WeekCalendar'
 
 export default function HomePage() {
   const { state, logout } = useAuth()
@@ -7,21 +8,33 @@ export default function HomePage() {
   const { user } = state
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          Hello {user.name} ({user.role})
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-        <button
-          type="button"
-          // After logout, ProtectedRoute sees "unauthenticated" and redirects to /login.
-          onClick={logout}
-          className="mt-6 rounded-lg border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Log out
-        </button>
-      </div>
-    </main>
+    <div className="min-h-screen bg-white">
+      <header className="border-b border-slate-200">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <span className="text-xl font-bold tracking-tight text-slate-900">ShiftHub</span>
+          <div className="flex min-w-0 items-center gap-3">
+            {/* name can be null in the database; the email is always there. */}
+            <span className="truncate text-sm font-medium text-slate-700">
+              {user.name ?? user.email}
+            </span>
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+              {user.role === 'MANAGER' ? 'Manager' : 'Employee'}
+            </span>
+            <button
+              type="button"
+              // After logout, ProtectedRoute sees "unauthenticated" and redirects to /login.
+              onClick={logout}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        <WeekCalendar />
+      </main>
+    </div>
   )
 }

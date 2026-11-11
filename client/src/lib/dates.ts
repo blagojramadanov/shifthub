@@ -53,40 +53,52 @@ export function daysBetween(a: Date, b: Date): number {
 }
 
 // ---------------------------------------------------------------------------
-// Display formatting (German format, 24h clock)
+// Display formatting (British English to match the UI, 24h clock)
 // ---------------------------------------------------------------------------
 // Creating an Intl.DateTimeFormat is relatively slow, so each one is created
 // once here and reused for every call.
 
-const timeFormat = new Intl.DateTimeFormat('de-DE', {
+const timeFormat = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23', // 00-23, never "24:00"
 })
 
-const dayHeaderFormat = new Intl.DateTimeFormat('de-DE', {
+const dayHeaderFormat = new Intl.DateTimeFormat('en-GB', {
   weekday: 'short',
-  day: '2-digit',
-  month: '2-digit',
+  day: 'numeric',
+  month: 'short', // a month name, so "9 Nov" can't be misread as 11 September
 })
 
-const weekRangeFormat = new Intl.DateTimeFormat('de-DE', {
+const weekRangeFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
 })
+
+const weekdayTimeFormat = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+// "Sun 22:00": for a shift that started in the previous week.
+export function formatWeekdayTime(date: Date): string {
+  return weekdayTimeFormat.format(date)
+}
 
 // "08:00"
 export function formatTime(date: Date): string {
   return timeFormat.format(date)
 }
 
-// "Mo., 09.11."
+// "Mon 9 Nov"
 export function formatDayHeader(date: Date): string {
   return dayHeaderFormat.format(date)
 }
 
-// "9.–15. November 2026", or "30. November – 6. Dezember 2026" across months.
+// "9 – 15 November 2026", or "30 November – 6 December 2026" across months.
 // formatRange() leaves out the parts both ends share (month, year).
 export function formatWeekRange(weekStart: Date): string {
   return weekRangeFormat.formatRange(weekStart, addDays(weekStart, 6))
@@ -96,7 +108,7 @@ export function formatWeekRange(weekStart: Date): string {
 // <input type="datetime-local"> conversion
 // ---------------------------------------------------------------------------
 // The input's value is a LOCAL wall-clock time without timezone: "2026-11-17T08:00".
-// The API wants a UTC ISO string: "2026-11-17T07:00:00.000Z" (in winter in Germany).
+// The API wants a UTC ISO string: "2026-11-17T07:00:00.000Z" (in winter in Central Europe, UTC+1).
 
 function pad(n: number, length = 2): string {
   return String(n).padStart(length, '0')
