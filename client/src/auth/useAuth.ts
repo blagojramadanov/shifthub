@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { User } from '../lib/api'
+import type { User } from '../types'
 
 // Where the app is in the login process.
 //   loading:         a saved token is being checked with GET /api/auth/me

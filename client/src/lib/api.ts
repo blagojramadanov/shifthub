@@ -1,5 +1,7 @@
 // All calls to the ShiftHub API go through this file.
 
+import type { User } from '../types'
+
 // Base URL of the API, injected by Vite at build time (VITE_API_URL).
 // A trailing slash is removed so paths like `/api/health` join cleanly.
 export const API_URL = import.meta.env.VITE_API_URL?.replace(/\/+$/, '')
@@ -155,16 +157,8 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
 // Endpoints
 // ---------------------------------------------------------------------------
 
-export type Role = 'MANAGER' | 'EMPLOYEE'
-
-// The safe user fields the server returns (publicUserSelect in auth.service.ts).
-export type User = {
-  id: number
-  name: string
-  email: string
-  role: Role
-  createdAt: string
-}
+// Auth endpoints live here because AuthProvider uses them together with the token storage.
+// Resource endpoints (shifts, users) live in src/api/.
 
 export type LoginResponse = { token: string; user: User }
 
