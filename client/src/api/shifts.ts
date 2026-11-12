@@ -4,7 +4,8 @@ import type { CreateShiftInput, Shift, UpdateShiftInput } from '../types'
 // Calls to /api/shifts. Every function throws ApiError on failure (see lib/api.ts).
 
 // The window to load. Every shift that OVERLAPS it comes back, oldest first.
-// The server needs both ends and allows at most 42 days.
+// On the server, from/to are optional but must be sent together, and the window can be
+// at most 42 days. (Without them it returns every visible shift; this client always sends both.)
 export type ShiftRange = { from: Date; to: Date }
 
 export function listShifts(range: ShiftRange, signal?: AbortSignal): Promise<Shift[]> {
