@@ -3,6 +3,7 @@ import express from 'express'
 import { errorHandler } from './middleware/errorHandler.js'
 import { notFound } from './middleware/notFound.js'
 import authRouter from './routes/auth.js'
+import eventsRouter from './routes/events.js'
 import healthRouter from './routes/health.js'
 import shiftsRouter from './routes/shifts.js'
 import usersRouter from './routes/users.js'
@@ -20,6 +21,7 @@ app.use('/api/health', healthRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/shifts', shiftsRouter)
 app.use('/api/users', usersRouter)
+app.use('/api/events', eventsRouter)
 
 // These two must stay LAST: notFound catches unmatched routes,
 // errorHandler catches every error passed along from above.

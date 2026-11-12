@@ -1,0 +1,53 @@
+# Realtime events (SSE) examples for the VS Code "REST Client" extension (humao.rest-client).
+# Click "Send Request" above any request. Requests are separated by ###.
+#
+# How the stream is opened:
+#   1. POST /api/events/ticket with the JWT  -> { ticket }  (valid 30 s, works once)
+#   2. GET  /api/events?ticket=<ticket>      -> a stream that stays open
+#
+# REST Client waits for a response to FINISH, so it can't show a live stream.
+# To watch one, run "Get a ticket" and then, within 30 s, in a terminal:
+#   curl -N "http://localhost:3000/api/events?ticket=<ticket>"
+# Then create/edit/delete a shift: "event: shifts-changed" appears. ": ping" comes every 25 s.
+
+@baseUrl = http://localhost:3000/api
+@password = Test1234!
+
+### Login (200). Saves the token for the ticket requests.
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@shifthub.dev",
+  "password": "{{password}}"
+}
+
+### ---------------------------------------------------------------
+### HAPPY PATH
+### ---------------------------------------------------------------
+
+### Get a ticket (201, { "ticket": "..." })
+# @name ticket
+POST {{baseUrl}}/events/ticket
+Authorization: Bearer {{login.response.body.token}}
+
+### Open the stream with that ticket (200, stays open: REST Client keeps "waiting").
+### Cancel it after a few seconds. Run within 30 s of "Get a ticket".
+GET {{baseUrl}}/events?ticket={{ticket.response.body.ticket}}
+
+### ---------------------------------------------------------------
+### SHOULD FAIL
+### ---------------------------------------------------------------
+
+### 401 INVALID_TICKET: the same ticket again (single use: the request above consumed it)
+GET {{baseUrl}}/events?ticket={{ticket.response.body.ticket}}
+
+### 401 INVALID_TICKET: a made-up ticket (same message as used or expired)
+GET {{baseUrl}}/events?ticket=not-a-real-ticket
+
+### 400 VALIDATION_ERROR: no ticket at all
+GET {{baseUrl}}/events
+
+### 401 UNAUTHORIZED: ticket request without a JWT
+POST {{baseUrl}}/events/ticket

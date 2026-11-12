@@ -2,6 +2,7 @@ import { AppError } from '../errors/AppError.js'
 import type { Prisma } from '../generated/prisma/client.js'
 import type { Role } from '../generated/prisma/enums.js'
 import { prisma } from '../lib/prisma.js'
+import { notifyShiftsChanged } from './events.service.js'
 import {
   getShiftTimeError,
   type CreateShiftInput,
@@ -119,7 +120,10 @@ export async function createShift(data: CreateShiftInput, actor: Actor) {
   }
 
   // A non-existent employeeId makes Prisma throw P2003, which the error handler turns into 400.
-  return prisma.shift.create({ data, include: shiftInclude })
+  const shift = await prisma.shift.create({ data, include: shiftInclude })
+  // Only reached when the write succeeded: a failed create never notifies anyone.
+  notifyShiftsChanged()
+  return shift
 }
 
 export async function updateShift(id: string, data: UpdateShiftInput, actor: Actor) {
@@ -145,7 +149,9 @@ export async function updateShift(id: string, data: UpdateShiftInput, actor: Act
     await assertNoOverlap(employeeId, startTime, endTime, id)
   }
 
-  return prisma.shift.update({ where: { id }, data, include: shiftInclude })
+  const shift = await prisma.shift.update({ where: { id }, data, include: shiftInclude })
+  notifyShiftsChanged()
+  return shift
 }
 
 export async function deleteShift(id: string, actor: Actor): Promise<void> {
@@ -154,4 +160,5 @@ export async function deleteShift(id: string, actor: Actor): Promise<void> {
   // deleteMany doesn't throw when nothing matches; it reports how many rows it removed.
   const { count } = await prisma.shift.deleteMany({ where: { id } })
   if (count === 0) throw shiftNotFound()
+  notifyShiftsChanged()
 }

@@ -30,6 +30,8 @@ ShiftHub/
 │   │   ├── main.tsx         # StrictMode > BrowserRouter > AuthProvider > App
 │   │   ├── lib/
 │   │   │   └── api.ts       # apiFetch (adds Bearer token, throws ApiError), token storage, endpoints
+│   │   ├── api/             # one module per resource (shifts, users, events: getEventsTicket, eventsUrl)
+│   │   ├── hooks/           # useWeekShifts, useEmployees, useShiftEvents (SSE connection + reconnect)
 │   │   ├── auth/
 │   │   │   ├── AuthContext.tsx  # AuthProvider: checks saved token via /me, login(), logout()
 │   │   │   ├── useAuth.ts       # AuthContext object, AuthState type, useAuth() hook
@@ -46,7 +48,8 @@ ShiftHub/
     ├── prisma.config.ts     # Prisma CLI config (DB URL lives here, not in schema)
     ├── requests/
     │   ├── shifts.http      # VS Code REST Client examples (happy path + failing cases)
-    │   └── auth.http        # register, login, /me examples (saves the token via # @name login)
+    │   ├── auth.http        # register, login, /me examples (saves the token via # @name login)
+    │   └── events.http      # SSE ticket + stream examples (*.local.http files are git-ignored)
     ├── src/
     │   ├── index.ts         # loads dotenv, validates env, starts server on PORT (default 3000)
     │   ├── app.ts           # express app, CORS, mounts routers, then notFound + errorHandler LAST
@@ -132,6 +135,14 @@ When adding a variable, also add it to the matching `.env.example` with a **plac
 - Client styling uses Tailwind utility classes only. No separate CSS files per component.
 - Client API calls go through `apiFetch` in `client/src/lib/api.ts`. Pass `auth: false` for requests that must not send the token or trigger the automatic logout on 401 (login, register).
 
+## Realtime updates (SSE)
+
+- Flow: `POST /api/events/ticket` (requireAuth) → `{ ticket }` (random, 30 s, single use) → `GET /api/events?ticket=...` opens a Server-Sent Events stream. EventSource can't send headers, and a JWT in the URL would end up in logs, hence the ticket.
+- `services/events.service.ts` holds tickets and connected clients **in memory**. That only works with a single server instance (Render free tier); a restart drops all streams and browsers reconnect.
+- After a successful shift create/update/delete, the shift service calls `notifyShiftsChanged()`, which sends `event: shifts-changed` with `data: {}`. **Never put shift data in events**: everyone receives them; each browser refetches only what it may see.
+- Stream cleanup uses `res.on('close')`, not `req.on('close')`. Heartbeat comment every 25 s. Don't add compression middleware without excluding `text/event-stream` (it would buffer the stream).
+- Client: `useShiftEvents(onChange)` in `WeekCalendar`, wired to `useWeekShifts().reload`. It closes EventSource on error and reconnects with a fresh ticket (backoff 1 s → 30 s + 0–500 ms jitter), reloads once after a reconnect, and stops on a 401 from the ticket request.
+
 ## Error response format
 
 Every API error uses this shape (built in `src/middleware/errorHandler.ts`):
@@ -147,6 +158,7 @@ Every API error uses this shape (built in `src/middleware/errorHandler.ts`):
 | `AppError` (auth) | 401 | `UNAUTHORIZED`: missing/malformed header, invalid or expired token, user deleted | none |
 | `AppError` (auth) | 401 | `INVALID_CREDENTIALS`: wrong password or unknown email (same message for both) | none |
 | `AppError` (auth) | 403 | `FORBIDDEN`: logged in, but role not allowed by `requireRole` | none |
+| `AppError` (events) | 401 | `INVALID_TICKET`: SSE ticket unknown, expired or already used (same message for all) | none |
 | `AppError` (auth) | 409 | `EMAIL_TAKEN`: register with an existing email (Prisma `P2002`, caught in the service) | none |
 | Prisma `P2025` | 404 | `NOT_FOUND` | none |
 | Prisma `P2003` | 400 | `INVALID_REFERENCE` | none |

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useShiftEvents } from '../../hooks/useShiftEvents'
 import { useWeekShifts } from '../../hooks/useWeekShifts'
 import { addDays, isSameDay, startOfWeek } from '../../lib/dates'
 import type { Shift } from '../../types'
@@ -30,6 +31,9 @@ export function WeekCalendar({ canEdit }: WeekCalendarProps) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [modal, setModal] = useState<ModalState>(null)
   const week = useWeekShifts(weekStart)
+  // Someone (any manager, in any browser) changed shifts: reload the week on screen.
+  // The old cards stay visible while it reloads, so the update just appears.
+  useShiftEvents(week.reload)
 
   const today = new Date()
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
