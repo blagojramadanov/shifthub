@@ -29,10 +29,10 @@ shifthub/
 | --- | --- |
 | `lib/api.ts` | `apiFetch`: adds the Bearer token, parses the error format into an `ApiError`, logs out on 401. Also token storage and the auth endpoints. |
 | `api/` | One module per resource: `shifts.ts`, `users.ts`, `events.ts`. |
-| `auth/` | `AuthProvider` (checks a saved token via `/me` on start), `useAuth`, route guards. |
+| `auth/` | `AuthProvider` (checks a saved token via `/me` on start; `login()`, `register()`, `logout()`), `useAuth`, route guards, `registerForm.ts` (browser-side register checks). |
 | `hooks/` | `useWeekShifts` (loads a week), `useEmployees`, `useShiftEvents` (realtime connection). |
-| `components/` | `calendar/` (week grid, day columns, shift cards) and `shifts/` (modal, form, details). |
-| `pages/` | `LoginPage` (`/login`, only when logged out) and `HomePage` (`/`, only when logged in). Any other path redirects to `/`. |
+| `components/` | `calendar/` (week grid, day columns, shift cards), `shifts/` (modal, form, details) and `auth/` (`AuthLayout`, the shared frame of the login and register pages). |
+| `pages/` | `LoginPage` (`/login`) and `RegisterPage` (`/register`), only when logged out, and `HomePage` (`/`, only when logged in). Any other path redirects to `/`. |
 | `lib/dates.ts` | Date helpers in local time, formatting with `Intl`. |
 
 **Server (`server/src/`)**: see the next section.
@@ -170,7 +170,7 @@ Shift responses include the assigned employee with `id` and `name` only:
 
 ## Authentication
 
-1. **Register** (`POST /auth/register`): Zod trims and lowercases the email and checks the password (at least 8 characters, at most 72 bytes, bcrypt's limit). The password is hashed with bcrypt (10 rounds). The `role` column's database default makes every new user an `EMPLOYEE`. A duplicate email gives `409 EMAIL_TAKEN`.
+1. **Register** (`POST /auth/register`): Zod trims and lowercases the email and checks the password (at least 8 characters, at most 72 bytes, bcrypt's limit). The password is hashed with bcrypt (10 rounds). The `role` column's database default makes every new user an `EMPLOYEE` (the role model is in [DECISIONS.md, 17](DECISIONS.md#17-single-tenant-role-model)). A duplicate email gives `409 EMAIL_TAKEN`. On the client, `RegisterPage` checks the same rules first (plus a confirm-password field that is never sent), and because register returns a token, the new user is logged in right away and sent to the calendar.
 2. **Login** (`POST /auth/login`): compares the password with bcrypt. For an unknown email it compares against a dummy hash, so both failures take the same time and return the same `401 INVALID_CREDENTIALS`.
 3. **Token:** both return `{ token, user }`. The token is a JWT signed with HS256 and `JWT_SECRET`, containing `sub` (user id) and `role`, valid for `JWT_EXPIRES_IN` (default `1d`). The API never returns `passwordHash`: user queries use an allow-list `select`.
 4. **Client storage:** the token is saved in `localStorage`. `apiFetch` sends it as `Authorization: Bearer <token>`. On app start, `AuthProvider` calls `/auth/me` to check a saved token; if the server is unreachable, it shows an error with a retry instead of logging out.

@@ -1,17 +1,20 @@
-// Turns an error from the shift API into what the shift form shows:
-// messages under individual fields, and/or one banner at the top of the form.
+// Turns an API error into what a form shows: messages under individual fields,
+// and/or one banner at the top of the form. Used by the shift form and the register form.
 
 import { ApiError } from './api'
 import { formatDayHeader, formatTime } from './dates'
 
-// The form's field names. Two differ from the API's: startTime -> start, endTime -> end.
+// One error message per form field. F is the form's own field names.
+export type FieldErrors<F extends string> = Partial<Record<F, string>>
+
+export type FormErrors<F extends string> = { fieldErrors: FieldErrors<F>; banner: string | null }
+
+// The shift form's field names. Two differ from the API's: startTime -> start, endTime -> end.
 export type ShiftField = 'title' | 'start' | 'end' | 'employeeId' | 'position' | 'notes'
 
-export type ShiftFieldErrors = Partial<Record<ShiftField, string>>
+export type ShiftFieldErrors = FieldErrors<ShiftField>
 
-export type FormErrors = { fieldErrors: ShiftFieldErrors; banner: string | null }
-
-const API_TO_FORM_FIELD: Record<string, ShiftField> = {
+const SHIFT_API_TO_FORM_FIELD: Record<string, ShiftField> = {
   title: 'title',
   startTime: 'start',
   endTime: 'end',
@@ -20,19 +23,32 @@ const API_TO_FORM_FIELD: Record<string, ShiftField> = {
   notes: 'notes',
 }
 
+// The register form's field names. confirmPassword is checked only in the browser.
+export type RegisterField = 'name' | 'email' | 'password' | 'confirmPassword'
+
+const REGISTER_API_TO_FORM_FIELD: Record<string, RegisterField> = {
+  name: 'name',
+  email: 'email',
+  password: 'password',
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 // 400 VALIDATION_ERROR: details is { fieldName: ["message", ...] } (z.flattenError on the server).
-function fromValidationError(err: ApiError): FormErrors {
-  const fieldErrors: ShiftFieldErrors = {}
+// apiToFormField says which form field shows the message for each API field.
+function fromValidationError<F extends string>(
+  err: ApiError,
+  apiToFormField: Record<string, F>,
+): FormErrors<F> {
+  const fieldErrors: FieldErrors<F> = {}
   const unmatched: string[] = []
 
   if (isRecord(err.details)) {
     for (const [apiField, messages] of Object.entries(err.details)) {
       if (!Array.isArray(messages) || typeof messages[0] !== 'string') continue
-      const formField = API_TO_FORM_FIELD[apiField]
+      const formField = apiToFormField[apiField]
       if (formField) fieldErrors[formField] = messages[0]
       else unmatched.push(messages[0]) // a field the form doesn't have: still show it
     }
@@ -41,7 +57,7 @@ function fromValidationError(err: ApiError): FormErrors {
   // "Validation failed" is just the generic summary. Any other message is an
   // object-level problem (no field), so it goes in the banner, unless it's the same
   // text already shown under a field (the PATCH time check in the service sends both).
-  const fieldMessages = Object.values(fieldErrors)
+  const fieldMessages: string[] = Object.values(fieldErrors)
   const messages = [...unmatched]
   const isGeneric = err.message === 'Validation failed'
   const nothingElseToShow = fieldMessages.length === 0 && messages.length === 0
@@ -68,14 +84,35 @@ function fromOverlapError(err: ApiError): string {
   return `This employee already has a shift at that time: "${conflict.title}", ${formatDayHeader(start)}, ${formatTime(start)} – ${formatTime(end)}.`
 }
 
-export function toFormErrors(err: unknown): FormErrors {
+function unknownErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Something went wrong'
+}
+
+export function toFormErrors(err: unknown): FormErrors<ShiftField> {
   if (err instanceof ApiError) {
-    if (err.status === 400 && err.code === 'VALIDATION_ERROR') return fromValidationError(err)
+    if (err.status === 400 && err.code === 'VALIDATION_ERROR') {
+      return fromValidationError(err, SHIFT_API_TO_FORM_FIELD)
+    }
     if (err.status === 409 && err.code === 'SHIFT_OVERLAP') {
       return { fieldErrors: {}, banner: fromOverlapError(err) }
     }
     // Everything else (INVALID_REFERENCE, SHIFT_NOT_FOUND, FORBIDDEN, NETWORK_ERROR, ...).
     return { fieldErrors: {}, banner: err.message }
   }
-  return { fieldErrors: {}, banner: err instanceof Error ? err.message : 'Something went wrong' }
+  return { fieldErrors: {}, banner: unknownErrorMessage(err) }
+}
+
+export function toRegisterFormErrors(err: unknown): FormErrors<RegisterField> {
+  if (err instanceof ApiError) {
+    if (err.status === 400 && err.code === 'VALIDATION_ERROR') {
+      return fromValidationError(err, REGISTER_API_TO_FORM_FIELD)
+    }
+    // 409 EMAIL_TAKEN has no details, but it's clearly about the email: show it there.
+    if (err.status === 409 && err.code === 'EMAIL_TAKEN') {
+      return { fieldErrors: { email: err.message }, banner: null }
+    }
+    // Everything else (NETWORK_ERROR, INTERNAL_ERROR, ...).
+    return { fieldErrors: {}, banner: err.message }
+  }
+  return { fieldErrors: {}, banner: unknownErrorMessage(err) }
 }

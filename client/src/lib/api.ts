@@ -160,12 +160,23 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
 // Auth endpoints live here because AuthProvider uses them together with the token storage.
 // Resource endpoints (shifts, users) live in src/api/.
 
-export type LoginResponse = { token: string; user: User }
+// What both login and register answer with.
+export type AuthResponse = { token: string; user: User }
 
-export function login(email: string, password: string): Promise<LoginResponse> {
-  return apiFetch<LoginResponse>('/api/auth/login', {
+export function login(email: string, password: string): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/api/auth/login', {
     method: 'POST',
     body: { email, password },
+    auth: false,
+  })
+}
+
+// Always creates an EMPLOYEE: the server has no role field to send (see docs/DECISIONS.md).
+// auth: false for the same reason as login: no token yet, and a failure is not a logout.
+export function register(name: string, email: string, password: string): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/api/auth/register', {
+    method: 'POST',
+    body: { name, email, password },
     auth: false,
   })
 }

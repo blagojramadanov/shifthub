@@ -9,7 +9,7 @@ ShiftHub is a full-stack web app for planning work shifts. Managers create, edit
 **https://shifthub-red.vercel.app**
 
 - The API runs on Render's free tier and sleeps when idle, so the first request can take up to about 50 seconds.
-- There is no sign-up page yet. Accounts are created through the API (`POST /api/auth/register`, see [`server/requests/auth.http`](server/requests/auth.http)) and are always employees. The manager view is shown in the screenshots below.
+- Create an account on the sign-up page (`/register`). New accounts join the team as employees; the manager view is shown in the screenshots below.
 
 ## Screenshots
 
@@ -17,7 +17,7 @@ ShiftHub is a full-stack web app for planning work shifts. Managers create, edit
 
 ## Features
 
-- **Login and roles.** JWT authentication with two roles: managers plan shifts, employees view them. The server enforces every permission.
+- **Sign-up, login and roles.** JWT authentication with two roles: managers plan shifts, employees view them. Anyone can sign up, but self-registered accounts are always employees. The server enforces every permission.
 - **Weekly calendar.** Monday-to-Sunday view with week navigation. The previous shifts stay visible while a week reloads.
 - **Open shifts.** Shifts without an employee are marked "Open" and visible to all employees.
 - **Overnight shifts.** A shift ending the next day shows `+1`. A shift that started in the previous week appears on Monday as a faded continuation card.
@@ -89,7 +89,7 @@ cd client && npm run dev
 
 ### 5. Create users
 
-Register users with the requests in [`server/requests/auth.http`](server/requests/auth.http) (VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension). Every new account is an employee. To make one a manager, update it in your own database, then log in again:
+Sign up at http://localhost:5173/register, or use the requests in [`server/requests/auth.http`](server/requests/auth.http) (VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension). Every new account is an employee. To make one a manager, update it in your own database (SQL below, or `npm run db:studio` in `server/`), then log in again:
 
 ```sql
 UPDATE "User" SET role = 'MANAGER' WHERE email = '<your email>';
@@ -103,10 +103,10 @@ shifthub/
 │   └── src/
 │       ├── api/       # one module per API resource
 │       ├── auth/      # auth context and route guards
-│       ├── components/# calendar and shift form/modal
+│       ├── components/# calendar, shift form/modal, login/register layout
 │       ├── hooks/     # data loading and realtime events
 │       ├── lib/       # fetch wrapper, date helpers
-│       └── pages/     # login and home
+│       └── pages/     # login, register and home
 └── server/            # Express REST API
     ├── prisma/        # schema and migrations
     ├── requests/      # REST Client examples for every endpoint
@@ -131,5 +131,7 @@ shifthub/
 - [ ] ESLint for the server (the client already has it) and Prettier for both
 - [ ] Automated tests with Vitest and Supertest
 - [ ] Security headers with helmet
-- [ ] Rate limiting on login
+- [ ] Rate limiting on login and register
+- [ ] Seed script for the first manager and demo accounts, with "Try demo" buttons on the login page
+- [ ] Team page where managers promote employees
 - [ ] Docker setup for local development

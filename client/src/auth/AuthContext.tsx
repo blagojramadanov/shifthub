@@ -45,11 +45,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort()
   }, [checkAttempt])
 
-  async function login(email: string, password: string) {
-    // Throws ApiError on failure (e.g. INVALID_CREDENTIALS): the login form shows it.
-    const { token, user } = await api.login(email, password)
+  // Login and register both answer with { token, user }: save the token, we're logged in.
+  function startSession({ token, user }: api.AuthResponse) {
     api.setToken(token)
     setState({ status: 'authenticated', user })
+  }
+
+  async function login(email: string, password: string) {
+    // Throws ApiError on failure (e.g. INVALID_CREDENTIALS): the login form shows it.
+    startSession(await api.login(email, password))
+  }
+
+  async function register(name: string, email: string, password: string) {
+    // Throws ApiError on failure (e.g. EMAIL_TAKEN, VALIDATION_ERROR): the register form shows it.
+    startSession(await api.register(name, email, password))
   }
 
   function logout() {
@@ -64,5 +73,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // React 19: a context can be rendered directly as its own provider.
-  return <AuthContext value={{ state, login, logout, retry }}>{children}</AuthContext>
+  return <AuthContext value={{ state, login, register, logout, retry }}>{children}</AuthContext>
 }

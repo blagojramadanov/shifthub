@@ -15,6 +15,8 @@ export type AuthState =
 export type AuthContextValue = {
   state: AuthState
   login: (email: string, password: string) => Promise<void>
+  // Creates an EMPLOYEE account and logs it in right away (register returns a token).
+  register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
   retry: () => void
 }

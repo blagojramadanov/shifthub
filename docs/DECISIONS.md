@@ -20,6 +20,7 @@ Short records of the main technical decisions in ShiftHub, in a lightweight ADR 
 14. [Overlap check in the service](#14-overlap-check-in-the-service)
 15. [Migrations in the Render build step](#15-migrations-in-the-render-build-step)
 16. [No date library](#16-no-date-library)
+17. [Single-tenant role model](#17-single-tenant-role-model)
 
 ---
 
@@ -76,7 +77,7 @@ Short records of the main technical decisions in ShiftHub, in a lightweight ADR 
 - **Context:** Registration is a public endpoint.
 - **Decision:** The register schema has no `role` field (Zod strips unknown fields), and the database default makes every new user an `EMPLOYEE`. Managers are promoted directly in the database.
 - **Why:** Nobody can sign up as a manager by adding `"role": "MANAGER"` to the request.
-- **Trade-off:** There's no in-app way to promote users yet.
+- **Trade-off:** There's no in-app way to promote users yet. See 17 for the overall role model.
 - **Code:** [`auth.schema.ts`](../server/src/schemas/auth.schema.ts), [`auth.service.ts`](../server/src/services/auth.service.ts)
 
 ## 8. Maximum 42-day range for the shift list
@@ -150,3 +151,16 @@ Short records of the main technical decisions in ShiftHub, in a lightweight ADR 
 - **Why:** The needs are small, there are no extra dependencies, and each helper documents its pitfalls (DST, local vs UTC parsing).
 - **Trade-off:** The edge cases are ours to get right. More complex features (time zones per team, recurring shifts) would likely justify a library.
 - **Code:** [`dates.ts`](../client/src/lib/dates.ts)
+
+## 17. Single-tenant role model
+
+- **Context:** ShiftHub serves one company with one shared team. New team members need a way to join, and the sign-up page (`/register`) is public.
+- **Decision:** One tenant: there is no organization table, and every user belongs to the same team. Self-registration always creates an `EMPLOYEE`, a new team member joining (enforced as described in 7). Nobody can sign up as a manager. Today the first manager (the company owner) is set up by hand: register normally, promote the account with SQL or Prisma Studio, then log in again (see the README setup).
+- **Why:** It's the simplest model that fits one company, and it closes the obvious privilege-escalation path: a public form can only ever create the lowest role.
+- **Trade-off:** Sign-up isn't invite-only, so anyone who finds the page can join as an employee and see the open shifts. Promoting someone still needs database access.
+- **Planned:**
+  - A seed script that creates the first manager and demo accounts, together with "Try demo" buttons on the login page.
+  - A Team page where a manager promotes an employee to `MANAGER`.
+  - Rate limiting on both `/auth/login` and `/auth/register` (planned for N4).
+  - Multi-tenancy, if ShiftHub ever serves several companies: an `Organization` model, users and shifts scoped to it, and invites instead of open sign-up.
+- **Code:** [`auth.schema.ts`](../server/src/schemas/auth.schema.ts), [`auth.service.ts`](../server/src/services/auth.service.ts), [`RegisterPage.tsx`](../client/src/pages/RegisterPage.tsx)

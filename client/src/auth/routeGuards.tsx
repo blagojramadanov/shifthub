@@ -56,8 +56,8 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   return children
 }
 
-// Only for logged-out users (the login page). Logged-in users are sent to /.
-// This is also what moves the user to / right after a successful login.
+// Only for logged-out users (login and register pages). Logged-in users are sent to /.
+// This is also what moves the user to / right after a successful login or register.
 export function PublicOnlyRoute({ children }: { children: ReactNode }) {
   const { state } = useAuth()
   if (state.status === 'loading' || state.status === 'error') return <AuthPending />

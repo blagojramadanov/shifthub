@@ -1,5 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { AuthLayout } from '../components/auth/AuthLayout'
+import { FormField } from '../components/shifts/FormField'
+import { inputClass } from '../components/shifts/inputClass'
 
 // After this long, explain why signing in is taking a while (Render cold start).
 const SLOW_AFTER_MS = 5000
@@ -31,74 +35,68 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">ShiftHub</h1>
-          <p className="mt-2 text-slate-600">Sign in to see your shifts</p>
-        </div>
+    <AuthLayout
+      subtitle="Sign in to see your shifts"
+      footer={
+        <>
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="font-medium text-slate-900 underline-offset-2 hover:underline">
+            Sign up
+          </Link>
+        </>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault() // stop the browser's full-page form submit
+          void handleSubmit()
+        }}
+        className="space-y-4"
+      >
+        {error && (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault() // stop the browser's full-page form submit
-            void handleSubmit()
-          }}
-          className="mt-8 space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        <FormField id="login-email" label="Email">
+          <input
+            id="login-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputClass(false)}
+          />
+        </FormField>
+
+        <FormField id="login-password" label="Password">
+          <input
+            id="login-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={inputClass(false)}
+          />
+        </FormField>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-lg bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {error && (
-            <div
-              role="alert"
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-            >
-              {error}
-            </div>
-          )}
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </button>
-
-          {slow && (
-            <p aria-live="polite" className="text-center text-sm text-slate-500">
-              The server may be waking up. This can take up to a minute.
-            </p>
-          )}
-        </form>
-      </div>
-    </main>
+        {slow && (
+          <p aria-live="polite" className="text-center text-sm text-slate-500">
+            The server may be waking up. This can take up to a minute.
+          </p>
+        )}
+      </form>
+    </AuthLayout>
   )
 }

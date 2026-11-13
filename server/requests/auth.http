@@ -23,6 +23,18 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
+### Register with "role": "MANAGER" (201, but role is still EMPLOYEE)
+# The schema has no role field: Zod strips it, and the database default applies.
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Wannabe Manager",
+  "email": "role{{$timestamp}}@shifthub.dev",
+  "password": "{{password}}",
+  "role": "MANAGER"
+}
+
 ### Login (200). Saves the token for the /me requests below.
 # @name login
 POST {{baseUrl}}/auth/login

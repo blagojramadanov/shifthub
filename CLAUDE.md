@@ -31,23 +31,25 @@ ShiftHub/
 │   └── DECISIONS.md         # why things were built this way
 ├── client/
 │   ├── src/
-│   │   ├── App.tsx          # routes: /login (public only), / (protected), * -> /
+│   │   ├── App.tsx          # routes: /login + /register (public only), / (protected), * -> /
 │   │   ├── main.tsx         # StrictMode > BrowserRouter > AuthProvider > App
 │   │   ├── types.ts         # shared client types: Role, User, UserSummary, Shift, Create/UpdateShiftInput
 │   │   ├── lib/
 │   │   │   ├── api.ts           # apiFetch (adds Bearer token, throws ApiError), token storage, endpoints
 │   │   │   ├── dates.ts         # week/day helpers, display formatting, datetime-local conversion
-│   │   │   └── formErrors.ts    # toFormErrors(): ApiError -> per-field errors + banner message
+│   │   │   └── formErrors.ts    # toFormErrors() (shifts), toRegisterFormErrors(): ApiError -> per-field errors + banner
 │   │   ├── api/             # one module per resource (shifts, users, events: getEventsTicket, eventsUrl)
 │   │   ├── hooks/           # useWeekShifts, useEmployees, useShiftEvents (SSE connection + reconnect)
 │   │   ├── components/
+│   │   │   ├── auth/        # AuthLayout: shared frame (heading, card, footer link) of LoginPage + RegisterPage
 │   │   │   ├── calendar/    # WeekCalendar (wires useShiftEvents), WeekNav, DayColumn, ShiftCard, Legend, CalendarStatus, groupShiftsByDay
 │   │   │   └── shifts/      # ShiftModal, ShiftForm, ShiftDetails, DeleteShiftButton, EmployeeSelect, FormField, shiftFormValues, inputClass
 │   │   ├── auth/
-│   │   │   ├── AuthContext.tsx  # AuthProvider: checks saved token via /me, login(), logout()
+│   │   │   ├── AuthContext.tsx  # AuthProvider: checks saved token via /me, login(), register(), logout()
 │   │   │   ├── useAuth.ts       # AuthContext object, AuthState type, useAuth() hook
+│   │   │   ├── registerForm.ts  # register form values + browser checks mirroring registerSchema
 │   │   │   └── routeGuards.tsx  # ProtectedRoute, PublicOnlyRoute
-│   │   ├── pages/           # LoginPage, HomePage
+│   │   ├── pages/           # LoginPage, RegisterPage, HomePage
 │   │   ├── vite-env.d.ts    # types for import.meta.env
 │   │   └── index.css        # @import "tailwindcss"
 │   ├── vercel.json          # SPA rewrite: every path serves index.html
@@ -58,7 +60,7 @@ ShiftHub/
     │   └── migrations/      # committed SQL migrations
     ├── prisma.config.ts     # Prisma CLI config (DB URL lives here, not in schema)
     ├── requests/            # VS Code REST Client files; *.local.http is git-ignored (prod/private tests)
-    │   ├── auth.http        # register, login, /me examples (saves the token via # @name login)
+    │   ├── auth.http        # register (incl. "role" ignored), login, /me examples (saves the token via # @name login)
     │   ├── events.http      # SSE ticket + stream examples
     │   ├── shifts.http      # shifts CRUD (happy path + failing cases)
     │   └── users.http       # list users as manager, ?role=EMPLOYEE, plus 401/403/400 cases
