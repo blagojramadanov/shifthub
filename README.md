@@ -9,11 +9,25 @@ ShiftHub is a full-stack web app for planning work shifts. Managers create, edit
 **https://shifthub-red.vercel.app**
 
 - The API runs on Render's free tier and sleeps when idle, so the first request can take up to about 50 seconds.
-- Create an account on the sign-up page (`/register`). New accounts join the team as employees; the manager view is shown in the screenshots below.
+- Create an account on the sign-up page (`/register`). New accounts join the team as employees, so you'll see the read-only employee view; the manager's week and shift form are shown in the screenshots below.
 
 ## Screenshots
 
-<!-- TODO: add screenshots (manager week, employee week, shift modal) -->
+**Manager: week view.** Every shift of the week, with a "+" per day and "New shift". Open shifts are dashed, today's date is circled, and "Live" shows the realtime connection.
+
+![Manager week view](docs/screenshots/manager-week.png)
+
+**Manager: editing a shift.** Title, times, assigned employee, position and notes, with delete, cancel and save.
+
+![Edit shift form](docs/screenshots/shift-form.png)
+
+**Employee: week view.** Read-only: only the employee's own shifts plus the open ones.
+
+![Employee week view](docs/screenshots/employee-week.png)
+
+**Sign-up page.** New accounts join the team as employees.
+
+![Register page](docs/screenshots/register.png)
 
 ## Features
 
