@@ -1,8 +1,14 @@
+import { useState } from 'react'
 import { useAuth } from '../auth/useAuth'
+import { ConnectionIndicator } from '../components/calendar/ConnectionIndicator'
 import { WeekCalendar } from '../components/calendar/WeekCalendar'
+import type { ConnectionStatus } from '../hooks/useShiftEvents'
 
 export default function HomePage() {
   const { state, logout } = useAuth()
+  // Reported by the calendar's realtime connection (one EventSource, inside WeekCalendar).
+  // Hooks must run before the early return below.
+  const [connection, setConnection] = useState<ConnectionStatus>('connecting')
   // ProtectedRoute only renders this page when logged in; this check is for TypeScript.
   if (state.status !== 'authenticated') return null
   const { user } = state
@@ -13,6 +19,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <span className="text-xl font-bold tracking-tight text-slate-900">ShiftHub</span>
           <div className="flex min-w-0 items-center gap-3">
+            <ConnectionIndicator status={connection} />
             {/* name can be null in the database; the email is always there. */}
             <span className="truncate text-sm font-medium text-slate-700">
               {user.name ?? user.email}
@@ -33,7 +40,7 @@ export default function HomePage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6">
-        <WeekCalendar canEdit={user.role === 'MANAGER'} />
+        <WeekCalendar canEdit={user.role === 'MANAGER'} onConnectionChange={setConnection} />
       </main>
     </div>
   )

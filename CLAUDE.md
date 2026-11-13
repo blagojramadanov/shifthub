@@ -39,10 +39,10 @@ ShiftHub/
 │   │   │   ├── dates.ts         # week/day helpers, display formatting, datetime-local conversion
 │   │   │   └── formErrors.ts    # toFormErrors() (shifts), toRegisterFormErrors(): ApiError -> per-field errors + banner
 │   │   ├── api/             # one module per resource (shifts, users, events: getEventsTicket, eventsUrl)
-│   │   ├── hooks/           # useWeekShifts, useEmployees, useShiftEvents (SSE connection + reconnect)
+│   │   ├── hooks/           # useWeekShifts, useEmployees, useShiftEvents (SSE connection, reconnect, status)
 │   │   ├── components/
 │   │   │   ├── auth/        # AuthLayout: shared frame (heading, card, footer link) of LoginPage + RegisterPage
-│   │   │   ├── calendar/    # WeekCalendar (wires useShiftEvents), WeekNav, DayColumn, ShiftCard, Legend, CalendarStatus, groupShiftsByDay
+│   │   │   ├── calendar/    # WeekCalendar (wires useShiftEvents), ConnectionIndicator, WeekNav, DayColumn, ShiftCard, Legend, CalendarStatus, groupShiftsByDay
 │   │   │   └── shifts/      # ShiftModal, ShiftForm, ShiftDetails, DeleteShiftButton, EmployeeSelect, FormField, shiftFormValues, inputClass
 │   │   ├── auth/
 │   │   │   ├── AuthContext.tsx  # AuthProvider: checks saved token via /me, login(), register(), logout()
@@ -156,6 +156,7 @@ When adding a variable, also add it to the matching `.env.example` with a **plac
 - After a successful shift create/update/delete, the shift service calls `notifyShiftsChanged()`, which sends `event: shifts-changed` with `data: {}`. **Never put shift data in events**: everyone receives them; each browser refetches only what it may see.
 - Stream cleanup uses `res.on('close')`, not `req.on('close')`. Heartbeat comment every 25 s. Don't add compression middleware without excluding `text/event-stream` (it would buffer the stream).
 - Client: `useShiftEvents(onChange)` in `WeekCalendar`, wired to `useWeekShifts().reload`. It closes EventSource on error and reconnects with a fresh ticket (backoff 1 s → 30 s + 0–500 ms jitter), reloads once after a reconnect, and stops on a 401 from the ticket request.
+- Status: `useShiftEvents(onChange, onStatusChange?)` reports `connecting` / `live` / `reconnecting` / `stopped` from its event and timer callbacks (never synchronously in the effect body). `reconnecting` only after a 3 s grace period, so quick drops don't flash. `WeekCalendar` passes it up via `onConnectionChange` to `HomePage`, whose header renders `ConnectionIndicator`. Don't open a second EventSource for the status.
 
 ## Error response format
 

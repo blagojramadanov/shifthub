@@ -30,7 +30,7 @@ shifthub/
 | `lib/api.ts` | `apiFetch`: adds the Bearer token, parses the error format into an `ApiError`, logs out on 401. Also token storage and the auth endpoints. |
 | `api/` | One module per resource: `shifts.ts`, `users.ts`, `events.ts`. |
 | `auth/` | `AuthProvider` (checks a saved token via `/me` on start; `login()`, `register()`, `logout()`), `useAuth`, route guards, `registerForm.ts` (browser-side register checks). |
-| `hooks/` | `useWeekShifts` (loads a week), `useEmployees`, `useShiftEvents` (realtime connection). |
+| `hooks/` | `useWeekShifts` (loads a week), `useEmployees`, `useShiftEvents` (realtime connection + status). |
 | `components/` | `calendar/` (week grid, day columns, shift cards), `shifts/` (modal, form, details) and `auth/` (`AuthLayout`, the shared frame of the login and register pages). |
 | `pages/` | `LoginPage` (`/login`) and `RegisterPage` (`/register`), only when logged out, and `HomePage` (`/`, only when logged in). Any other path redirects to `/`. |
 | `lib/dates.ts` | Date helpers in local time, formatting with `Intl`. |
@@ -255,6 +255,7 @@ sequenceDiagram
 - After a reconnect it reloads once, because events may have been missed in the meantime.
 - If the ticket request returns 401, the login has expired: `apiFetch` logs the user out and the hook stops.
 - The connection is closed when the calendar unmounts (logout, navigation).
+- **Status indicator:** the hook reports `connecting` (not connected yet, also while first attempts fail during a cold start), `live` (stream open), `reconnecting` (was live, now retrying) or `stopped` (after a 401) through an optional second callback. `WeekCalendar` passes it up to `HomePage`, whose header shows it as a colored dot plus text (`ConnectionIndicator`), so there's still only one `EventSource`. `reconnecting` is only reported if the connection isn't back within 3 s, so a quick drop or a server restart doesn't flash in the header.
 
 **Limit:** tickets and clients live in one server process, so this needs a single API instance. A restart or deploy drops all streams, and browsers reconnect.
 

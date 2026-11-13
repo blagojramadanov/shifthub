@@ -21,7 +21,7 @@ ShiftHub is a full-stack web app for planning work shifts. Managers create, edit
 - **Weekly calendar.** Monday-to-Sunday view with week navigation. The previous shifts stay visible while a week reloads.
 - **Open shifts.** Shifts without an employee are marked "Open" and visible to all employees.
 - **Overnight shifts.** A shift ending the next day shows `+1`. A shift that started in the previous week appears on Monday as a faded continuation card.
-- **Realtime updates.** When a manager saves or deletes a shift, every connected browser reloads its week (Server-Sent Events).
+- **Realtime updates.** When a manager saves or deletes a shift, every connected browser reloads its week (Server-Sent Events). A status indicator in the header shows whether the live connection is up.
 - **Overlap detection.** An employee can't be booked for two shifts at the same time (back-to-back shifts are allowed).
 
 ## Tech stack

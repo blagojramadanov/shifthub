@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useShiftEvents } from '../../hooks/useShiftEvents'
+import { useShiftEvents, type ConnectionStatus } from '../../hooks/useShiftEvents'
 import { useWeekShifts } from '../../hooks/useWeekShifts'
 import { addDays, isSameDay, startOfWeek } from '../../lib/dates'
 import type { Shift } from '../../types'
@@ -23,17 +23,20 @@ type WeekCalendarProps = {
   // true for managers: "New shift", "+" per day, and cards open the edit form.
   // false: cards open read-only details. (The server enforces the same rules.)
   canEdit: boolean
+  // Hears the realtime connection status, so the page header can show it.
+  onConnectionChange?: (status: ConnectionStatus) => void
 }
 
 // The weekly shift calendar: navigation, loading/error/empty states, 7 days and the modal.
-export function WeekCalendar({ canEdit }: WeekCalendarProps) {
+export function WeekCalendar({ canEdit, onConnectionChange }: WeekCalendarProps) {
   // The function form runs only on the first render.
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [modal, setModal] = useState<ModalState>(null)
   const week = useWeekShifts(weekStart)
   // Someone (any manager, in any browser) changed shifts: reload the week on screen.
   // The old cards stay visible while it reloads, so the update just appears.
-  useShiftEvents(week.reload)
+  // The hook lives here because it needs week.reload; its status goes up to the header.
+  useShiftEvents(week.reload, onConnectionChange)
 
   const today = new Date()
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
