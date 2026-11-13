@@ -77,6 +77,8 @@ const dayHeaderFormat = new Intl.DateTimeFormat('en-GB', {
   month: 'short', // a month name, so "9 Nov" can't be misread as 11 September
 })
 
+const weekdayShortFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short' })
+
 const weekRangeFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'long',
@@ -103,6 +105,11 @@ export function formatTime(date: Date): string {
 // "Mon 9 Nov"
 export function formatDayHeader(date: Date): string {
   return dayHeaderFormat.format(date)
+}
+
+// "Mon": the first line of a calendar day header.
+export function formatWeekdayShort(date: Date): string {
+  return weekdayShortFormat.format(date)
 }
 
 // "9 – 15 November 2026", or "30 November – 6 December 2026" across months.
