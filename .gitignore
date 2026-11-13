@@ -1,4 +1,22 @@
+# Dependencies and build output (applies to client/ and server/)
 node_modules
-.env
 dist
+
+# Secrets: real env files (the .env.example templates stay tracked)
+.env
+
+# Private REST Client requests (prod URLs, real tokens)
 *.local.http
+
+# Claude Code local settings and permissions
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor folders (.vscode/settings.json is tracked on purpose)
+.idea
+
+# Root-level logs
+*.log
