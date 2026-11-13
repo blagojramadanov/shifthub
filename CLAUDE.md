@@ -24,14 +24,25 @@ ShiftHub ("Shift scheduling made simple") is a full-stack **portfolio project** 
 
 ```
 ShiftHub/
+├── README.md                # project overview, setup, live demo (for recruiters / new readers)
+├── CLAUDE.md                # this file
+├── docs/
+│   ├── ARCHITECTURE.md      # how the pieces fit together
+│   └── DECISIONS.md         # why things were built this way
 ├── client/
 │   ├── src/
 │   │   ├── App.tsx          # routes: /login (public only), / (protected), * -> /
 │   │   ├── main.tsx         # StrictMode > BrowserRouter > AuthProvider > App
+│   │   ├── types.ts         # shared client types: Role, User, UserSummary, Shift, Create/UpdateShiftInput
 │   │   ├── lib/
-│   │   │   └── api.ts       # apiFetch (adds Bearer token, throws ApiError), token storage, endpoints
+│   │   │   ├── api.ts           # apiFetch (adds Bearer token, throws ApiError), token storage, endpoints
+│   │   │   ├── dates.ts         # week/day helpers, display formatting, datetime-local conversion
+│   │   │   └── formErrors.ts    # toFormErrors(): ApiError -> per-field errors + banner message
 │   │   ├── api/             # one module per resource (shifts, users, events: getEventsTicket, eventsUrl)
 │   │   ├── hooks/           # useWeekShifts, useEmployees, useShiftEvents (SSE connection + reconnect)
+│   │   ├── components/
+│   │   │   ├── calendar/    # WeekCalendar (wires useShiftEvents), WeekNav, DayColumn, ShiftCard, Legend, CalendarStatus, groupShiftsByDay
+│   │   │   └── shifts/      # ShiftModal, ShiftForm, ShiftDetails, DeleteShiftButton, EmployeeSelect, FormField, shiftFormValues, inputClass
 │   │   ├── auth/
 │   │   │   ├── AuthContext.tsx  # AuthProvider: checks saved token via /me, login(), logout()
 │   │   │   ├── useAuth.ts       # AuthContext object, AuthState type, useAuth() hook
@@ -46,10 +57,11 @@ ShiftHub/
     │   ├── schema.prisma    # models: User, Shift; enum Role (MANAGER, EMPLOYEE)
     │   └── migrations/      # committed SQL migrations
     ├── prisma.config.ts     # Prisma CLI config (DB URL lives here, not in schema)
-    ├── requests/
-    │   ├── shifts.http      # VS Code REST Client examples (happy path + failing cases)
+    ├── requests/            # VS Code REST Client files; *.local.http is git-ignored (prod/private tests)
     │   ├── auth.http        # register, login, /me examples (saves the token via # @name login)
-    │   └── events.http      # SSE ticket + stream examples (*.local.http files are git-ignored)
+    │   ├── events.http      # SSE ticket + stream examples
+    │   ├── shifts.http      # shifts CRUD (happy path + failing cases)
+    │   └── users.http       # list users as manager, ?role=EMPLOYEE, plus 401/403/400 cases
     ├── src/
     │   ├── index.ts         # loads dotenv, validates env, starts server on PORT (default 3000)
     │   ├── app.ts           # express app, CORS, mounts routers, then notFound + errorHandler LAST
@@ -158,6 +170,8 @@ Every API error uses this shape (built in `src/middleware/errorHandler.ts`):
 | `AppError` (auth) | 401 | `UNAUTHORIZED`: missing/malformed header, invalid or expired token, user deleted | none |
 | `AppError` (auth) | 401 | `INVALID_CREDENTIALS`: wrong password or unknown email (same message for both) | none |
 | `AppError` (auth) | 403 | `FORBIDDEN`: logged in, but role not allowed by `requireRole` | none |
+| `AppError` (shifts) | 403 | `FORBIDDEN`: thrown by `shift.service.ts` as a second guard: non-manager creates/updates/deletes, or an employee filters by another employee's id | none |
+| `AppError` (shifts) | 400 | `VALIDATION_ERROR`: thrown by `shift.service.ts` when an update sends only `startTime` or `endTime` and it doesn't fit the stored one | same field-error shape as Zod, e.g. `{ "endTime": ["..."] }` |
 | `AppError` (events) | 401 | `INVALID_TICKET`: SSE ticket unknown, expired or already used (same message for all) | none |
 | `AppError` (auth) | 409 | `EMAIL_TAKEN`: register with an existing email (Prisma `P2002`, caught in the service) | none |
 | Prisma `P2025` | 404 | `NOT_FOUND` | none |
@@ -172,4 +186,5 @@ New expected errors: throw `new AppError(status, message, 'UPPER_SNAKE_CODE', de
 1. **I'm learning.** After every change, explain in simple terms what you changed and why, file by file. Explain new concepts briefly when they first come up.
 2. **Never print, log or commit secrets.** Don't read `.env` files out loud: no `cat`, no printing values, no echoing `DATABASE_URL`. If you need to check a variable, check only that it exists. Filter command output that could contain connection strings, and never put real values in code, docs or `.env.example`.
 3. **Keep changes small and focused.** Do only the task asked; mention other improvements as suggestions instead of making them.
-4. **Suggest a git commit message** at the end of each task (Conventional Commits style, for example `feat(server): add shifts CRUD routes`). Don't commit unless I ask.
+4. **Keep docs in sync.** When a change affects behavior described in `README.md` or `docs/`, update those files in the same task.
+5. **Suggest a git commit message** at the end of each task (Conventional Commits style, for example `feat(server): add shifts CRUD routes`). Don't commit unless I ask.
